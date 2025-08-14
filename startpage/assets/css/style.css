@@ -1,0 +1,291 @@
+/* === Palett & tema === */
+:root {
+  --bg: #0b1020;
+  --bg-spot-1: #1b2246;
+  --bg-spot-2: #0d1a5b;
+
+  --card: rgba(255, 255, 255, 0.22);
+  --card-hover: rgba(255, 255, 255, 0.30);
+
+  --text: #ffffff;
+  --muted: #f0f4ff;
+  --accent: #7c9aff;
+
+  --ok: #22c55e;
+  --warn: #f59e0b;
+  --err: #ef4444;
+
+  --blur: 14px;
+  --radius: 20px;
+  --shadow: 0 4px 11px rgba(0,0,0,0.65), inset 0 0 2px rgba(255,255,255,0.2);
+}
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg: #f7f8fc;
+    --bg-spot-1: #dfe6ff;
+    --bg-spot-2: #cfe0ff;
+
+    --text: #0b1020;
+    --muted:#2a3b50;
+
+    --card: rgba(0,0,0,0.12);
+    --card-hover: rgba(0,0,0,0.18);
+
+    --accent:#3b82f6;
+  }
+}
+
+/* === Base === */
+* { box-sizing: border-box; }
+html { height: 100%; }
+body {
+  min-height: 100vh;
+  margin: 0;
+  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica Neue, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+  color: var(--text);
+  background:
+    radial-gradient(1200px 600px at 10% 0%, var(--bg-spot-1) 0%, transparent 50%),
+    radial-gradient(900px 700px at 100% 0%, var(--bg-spot-2) 0%, transparent 55%),
+    linear-gradient(180deg, var(--bg) 0%, var(--bg) 100%);
+  background-color: var(--bg);
+  background-attachment: fixed, fixed, fixed;
+}
+
+.container { max-width: 1100px; margin: 0 auto; padding: 24px; }
+
+header {
+  display:flex; align-items:center; justify-content:space-between;
+  gap:16px; margin-bottom: 18px;
+}
+.greeting { font-size: clamp(22px, 4.5vw, 36px); font-weight: 800; letter-spacing:0.2px; }
+.sub { color: var(--muted); font-size: 14px; }
+
+.controls { display: none !important; } /* gamle topper */
+
+/* Buttons / chips (brukes også på <select>) */
+button, .chip {
+  background: var(--card);
+  border: 1px solid rgba(255,255,255,0.32);
+  color: var(--text);
+  padding: 10px 14px;
+  border-radius: 12px;
+  cursor: pointer;
+  backdrop-filter: blur(var(--blur));
+  -webkit-backdrop-filter: blur(var(--blur));
+  box-shadow: var(--shadow);
+  transition: transform .08s ease, background .2s ease, border .2s ease;
+}
+button:hover, .chip:hover { background: var(--card-hover); transform: translateY(-1px); }
+select.chip { appearance: none; }
+
+/* === Grid & kort === */
+.grid { display:grid; grid-template-columns: repeat(12, 1fr); gap: 16px; }
+
+.card {
+  grid-column: span 12;
+  background: var(--card);
+  border: 1px solid rgba(255,255,255,0.32);
+  border-radius: var(--radius);
+  padding: 16px;
+  backdrop-filter: blur(var(--blur));
+  -webkit-backdrop-filter: blur(var(--blur));
+  box-shadow: var(--shadow);
+  transition: background .2s ease, border .2s ease;
+}
+.card:hover { background: var(--card-hover); }
+
+@media (min-width: 720px) {
+  .span-4  { grid-column: span 4; }
+  .span-6  { grid-column: span 6; }
+  .span-8  { grid-column: span 8; }
+  .span-12 { grid-column: span 12; }
+}
+
+.row       { display:flex; align-items:center; justify-content:space-between; gap: 10px; }
+.big       { font-size: 42px; font-weight: 800; letter-spacing: .5px; }
+.muted     { color: var(--muted); }
+.small     { font-size: 12px; color: var(--muted); }
+.section-title { margin: 8px 0 12px; font-weight: 700; letter-spacing: .3px; }
+
+/* Klikkbare kort */
+.card.clickable { cursor: pointer; }
+.card.clickable:active { transform: translateY(1px); }
+
+/* === Lenke-rutenett === */
+.links { display:grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; }
+.link {
+  display:flex; align-items:center; gap:10px; padding: 11px 12px;
+  border-radius: 14px; text-decoration:none; color: var(--text);
+  border: 1px solid rgba(255,255,255,0.32);
+  background: linear-gradient(180deg, rgba(255,255,255,0.28), rgba(255,255,255,0.18));
+  box-shadow: var(--shadow);
+}
+.link:hover { transform: translateY(-2px); background: linear-gradient(180deg, rgba(255,255,255,0.34), rgba(255,255,255,0.24)); }
+.link svg { width: 18px; height: 18px; opacity: 1; }
+
+/* === Vær === */
+.weather-content {
+  display: grid;
+  grid-template-columns: auto 1px 1fr; /* nå | sep | time-for-time */
+  align-items: center;
+  gap: 12px;
+}
+.v-sep { width: 1px; height: 100%; background: rgba(255,255,255,0.28); border-radius: 1px; }
+.hourly {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(72px, 1fr);
+  gap: 8px;
+  overflow-x: auto;
+  padding: 6px 2px 2px;
+}
+.hour {
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  padding: 8px;
+  border-radius: 10px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.18), rgba(255,255,255,0.10));
+  border: 1px solid rgba(255,255,255,0.22);
+  white-space: nowrap;
+}
+.hour .h { font-size: 12px; color: var(--muted); }
+.hour .e { font-size: 18px; }
+.hour .t { font-weight: 700; }
+.temp-row { display: flex; align-items: center; gap: 8px; }
+.temp-row #weatherIcon { font-size: 28px; line-height: 1; }
+
+/* === Kalender i klokke-kortet === */
+#calendar {
+  margin-top: 8px;
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+  font-size: 13px;
+}
+#calendar .dow { font-weight: 700; text-align: center; color: var(--muted); }
+#calendar .day {
+  text-align: center;
+  padding: 6px 0;
+  border-radius: 10px;
+  background: rgba(255,255,255,0.14);
+  border: 1px solid rgba(255,255,255,0.22);
+}
+#calendar .day.out { opacity: .45; }
+
+/* Skjul "Klokke & kalender"-tittel og bruk plassen til større klokke */
+#clockCard .section-title { display: none; }
+#clockCard.compact.card { padding-top: 18px; }
+#clockCard.compact .big {
+  font-size: clamp(40px, 7vw, 56px);
+  line-height: 1;
+  margin: 0 8px 0 0;
+}
+#clockCard #bigDate {
+  display: inline-block; margin: 0 0 0 6px;
+  font-size: clamp(16px, 2vw, 20px);
+  font-weight: 600; color: var(--muted); opacity: .95;
+}
+#clockCard.compact #calendar { font-size: 10px; gap: 2px; margin-top: 10px; }
+#clockCard.compact #calendar .dow { font-weight: 600; padding: 2px 0; }
+#clockCard.compact #calendar .day {
+  padding: 2px 0; min-width: 20px; border-radius: 6px;
+  background: rgba(255,255,255,0.10);
+  border: 1px solid rgba(255,255,255,0.18);
+}
+#clockCard #calendar .day.today {
+  background: radial-gradient(120% 120% at 50% 40%, rgba(255,255,255,0.35), rgba(255,255,255,0.15));
+  border: 2px solid var(--accent); color: var(--text); font-weight: 800; position: relative;
+}
+#clockCard #calendar .day.today::after {
+  content: ""; position: absolute; bottom: 4px; left: 50%; transform: translateX(-50%);
+  width: 6px; height: 6px; background: var(--accent); border-radius: 50%; opacity: .9;
+}
+
+/* === Nyheter (RSS) === */
+.tall { min-height: 320px; }
+.rss-list { margin-top: 10px; display: flex; flex-direction: column; gap: 8px; max-height: 200px; overflow-y: auto; scrollbar-width: none; }
+.rss-list::-webkit-scrollbar { display: none; }
+.rss-item {
+  display: flex; gap: 8px; align-items: baseline; padding: 8px 10px;
+  border-radius: 10px; background: linear-gradient(180deg, rgba(255,255,255,0.18), rgba(255,255,255,0.10));
+  border: 1px solid rgba(255,255,255,0.22);
+}
+.rss-item a { color: var(--text); text-decoration: none; font-weight: 600; }
+.rss-item a:hover { text-decoration: underline; }
+.rss-meta { color: var(--muted); font-size: 12px; white-space: nowrap; }
+
+/* === Market-kort (graf + KPI) === */
+.market .chart-wrap {
+  position: relative;
+  height: 260px;
+  padding-left: 220px;   /* plass til KPI-panel (3 bokser) */
+  overflow: hidden;
+}
+.market .chart-wrap canvas { display: block; width: 100%; height: 100%; }
+
+.market .kpis {
+  position: absolute; left: 10px; top: 6px; width: 200px;
+  display: flex; flex-direction: column; gap: 10px; z-index: 2;
+}
+.market .kpi {
+  padding: 12px 14px; border-radius: 12px; text-align: center;
+  background: linear-gradient(180deg, rgba(255,255,255,0.18), rgba(255,255,255,0.10));
+  border: 1px solid rgba(255,255,255,0.22);
+  box-shadow: var(--shadow);
+}
+.market .kpi-now {                 /* tydeligere "Nå" */
+  background: linear-gradient(180deg, rgba(255,255,255,0.32), rgba(255,255,255,0.22));
+  border: 2px solid var(--accent);
+  box-shadow: 0 6px 14px rgba(124,154,255,0.25), var(--shadow);
+}
+.market .kpi-dim {                 /* dusere Snitt + Min/Max */
+  background: linear-gradient(180deg, rgba(255,255,255,0.14), rgba(255,255,255,0.08));
+  border: 1px solid rgba(255,255,255,0.18);
+  opacity: .92;
+}
+.market .kpi-label { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+.market .kpi-value { font-size: 22px; font-weight: 800; line-height: 1.1; }
+.market .kpi-now .kpi-value { font-size: 26px; }
+
+.market select.chip { padding: 6px 10px; border-radius: 10px; }
+
+@media (min-width: 1024px) {
+  .market .chart-wrap { height: 280px; }
+}
+
+/* --- Google-søk-kort --- */
+#searchCard { padding: 10px 12px; } /* litt lavere kort */
+#searchCard .search-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+#searchCard .search-input {
+  flex: 1;
+  height: 42px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.32);
+  background: rgba(255,255,255,0.18);
+  color: var(--text);
+  outline: none;
+  backdrop-filter: blur(var(--blur));
+  -webkit-backdrop-filter: blur(var(--blur));
+  box-shadow: var(--shadow);
+}
+
+#searchCard .search-input::placeholder {
+  color: var(--muted);
+  opacity: 0.9;
+}
+
+/* tydelig fokus uten å bryte stilen */
+#searchCard .search-input:focus-visible {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(124,154,255,0.35), var(--shadow);
+}
+
+#searchCard button.chip {
+  height: 42px;
+  padding: 0 14px;
+}

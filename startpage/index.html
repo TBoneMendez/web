@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="no">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Min Startside</title>
+  <link rel="stylesheet" href="assets/css/style.css" />
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div>
+        <div class="greeting" id="greeting">Hei 👋</div>
+        <div class="sub" id="subtitle">Be happy!</div>
+      </div>
+      <div class="controls"></div>
+    </header>
+
+    <main class="grid">
+      <!-- Klokke + kalender -->
+      <section class="card span-4 compact clickable" id="clockCard"
+               role="link" tabindex="0" aria-label="Åpne Google Kalender">
+        <div class="section-title">Klokke & kalender</div>
+        <div id="bigClock" class="big">--:--</div>
+        <div id="bigDate" class="muted"></div>
+        <div id="calendar"></div>
+      </section>
+
+      <!-- Vær-widget -->
+      <section class="card span-8 clickable" id="weatherCard"
+               role="link" tabindex="0" aria-label="Åpne Yr.no">
+        <div class="section-title">Været nær deg</div>
+        <div class="weather-content">
+          <div class="now">
+            <div class="temp-row">
+              <div class="big" id="weatherTemp">--°</div>
+              <div id="weatherIcon" aria-hidden="true" class="weather-emoji">⛅</div>
+            </div>
+            <div class="muted" id="weatherDesc">Prøver å finne posisjon…</div>
+            <div class="small" id="weatherLocation"></div>
+          </div>
+          <div class="v-sep" aria-hidden="true"></div>
+          <div id="hourly" class="hourly"></div>
+        </div>
+      </section>
+
+      <!-- Google-søk (full bredde) -->
+      <section class="card span-12 search-card" id="searchCard">
+        <form action="https://www.google.com/search" method="GET" target="_blank" role="search">
+          <div class="search-row">
+            <input
+              id="searchBox"
+              class="search-input"
+              type="search"
+              name="q"
+              placeholder="Søk på Google…"
+              autocomplete="off"
+              spellcheck="false"
+              enterkeyhint="search"
+              aria-label="Søk på Google"
+              required
+            />
+            <button class="chip search-btn" type="submit" aria-label="Søk">Søk</button>
+          </div>
+        </form>
+      </section>
+
+      <!-- Google Suite -->
+      <section class="card span-6">
+        <div class="section-title">Google Suite</div>
+        <div class="links" id="gsuiteLinks"></div>
+      </section>
+
+      <!-- Bank -->
+      <section class="card span-6">
+        <div class="section-title">Bank & finans</div>
+        <div class="links" id="bankLinks"></div>
+      </section>
+
+      <!-- Streaming -->
+      <section class="card span-6">
+        <div class="section-title">Streaming</div>
+        <div class="links" id="streamingLinks"></div>
+      </section>
+
+      <!-- Nyheter -->
+      <section class="card span-6 tall" id="newsCard">
+        <div class="section-title">Nyheter</div>
+        <div class="links" id="newsLinks"></div>
+        <div id="rssList" class="rss-list"></div>
+      </section>
+
+      <!-- MARKED (full bredde i grid) -->
+      <section class="card span-12 market" id="marketCard">
+        <div class="row" style="align-items:center">
+          <div class="section-title">Trender</div>
+
+          <div style="margin-left:auto; display:flex; gap:8px; align-items:center">
+            <label for="datasetSelect" class="small">Datasett</label>
+            <select id="datasetSelect" class="chip">
+              <option value="power-no1">Strøm NO1 (i dag + i morgen)</option>
+              <option value="eur-nok">EUR → NOK (12 mnd)</option>
+              <option value="usd-nok">USD → NOK (12 mnd)</option>
+              <option value="nok-sek">NOK → SEK (12 mnd)</option>
+            </select>
+          </div>
+        </div>
+
+        <div id="marketNote" class="small muted" style="margin-bottom:6px"></div>
+        <div class="chart-wrap">
+          <div class="kpis">
+            <div class="kpi kpi-now">
+              <div class="kpi-label">Nå</div>
+              <div id="kpiNow" class="kpi-value">--</div>
+            </div>
+            <div class="kpi kpi-dim">
+              <div class="kpi-label">Snitt</div>
+              <div id="kpiAvg" class="kpi-value">--</div>
+            </div>
+            <div class="kpi kpi-dim">
+              <div class="kpi-label">Min / Max</div>
+              <div id="kpiMinMax" class="kpi-value">-- / --</div>
+            </div>
+          </div>
+
+          <canvas id="marketChart" aria-label="Tidsserie"></canvas>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Chart.js (må ligge før app.js) -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3"></script>
+
+  <!-- App -->
+  <script type="module" src="./assets/js/app.js"></script>
+</body>
+</html>

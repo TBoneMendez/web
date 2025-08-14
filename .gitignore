@@ -1,0 +1,13 @@
+# OS/editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Node/build (if you ever add a toolchain)
+node_modules/
+dist/
+build/
+
+# Python virtual env (if you happen to create one)
+.venv/

@@ -1,0 +1,24 @@
+{
+  "name": "du!",
+  "city": "Hønefoss",
+  "links": {
+    "quick": [
+      {
+        "title": "Gmail",
+        "url": "https://mail.google.com"
+      }
+    ],
+    "news": [
+      {
+        "title": "Ringblad",
+        "url": "https://www.ringblad.no"
+      }
+    ],
+    "bank": [
+      {
+        "title": "SpareBank 1",
+        "url": "https://www.sparebank1.no"
+      }
+    ]
+  }
+}
