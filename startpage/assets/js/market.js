@@ -16,7 +16,7 @@ function formatValue(v, unit) {
 function setKPIs(series, unit, isHourly) {
   const now = Date.now();
 
-  // "Nå" = siste punkt <= nå (om timeserie); ellers siste punkt
+  // "Nå" = siste punkt <= nå (for timeserier); ellers siste punkt
   let current = null;
   if (isHourly) {
     for (let i = series.length - 1; i >= 0; i--) {
@@ -89,11 +89,12 @@ async function fetchFx(base, quote, months = 12) {
 // ---------- Power (NO1) ----------
 async function fetchPowerNO1() {
   const today = new Date();
-  const y = today.getFullYear();
-  const m = String(today.getMonth() + 1).padStart(2, '0');
-  const d = String(today.getDate()).padStart(2, '0');
+  const y  = today.getFullYear();
+  const m  = String(today.getMonth() + 1).padStart(2, '0');
+  const d  = String(today.getDate()).padStart(2, '0');
 
-  const t2 = new Date(today); t2.setDate(today.getDate() + 1);
+  const t2 = new Date(today);
+  t2.setDate(today.getDate() + 1);
   const y2 = t2.getFullYear();
   const m2 = String(t2.getMonth() + 1).padStart(2, '0');
   const d2 = String(t2.getDate()).padStart(2, '0');
@@ -101,20 +102,32 @@ async function fetchPowerNO1() {
   const urlToday    = `https://www.hvakosterstrommen.no/api/v1/prices/${y}/${m}-${d}_NO1.json`;
   const urlTomorrow = `https://www.hvakosterstrommen.no/api/v1/prices/${y2}/${m2}-${d2}_NO1.json`;
 
-  const [r1, r2] = await Promise.allSettled([fetch(urlToday), fetch(urlTomorrow)]);
-  const arr = [];
-
-  if (r1.status === 'fulfilled') {
-    const a1 = await r1.value.json();
-    a1.forEach(row => arr.push({ x: new Date(row.time_start).getTime(), y: row.NOK_per_kWh }));
+  // Hent JSON bare hvis OK + content-type er JSON
+  async function safeGet(url) {
+    try {
+      const r = await fetch(url, { cache: 'no-store' });
+      if (!r.ok) return null; // 404/5xx → ikke publisert ennå
+      const ct = (r.headers.get('content-type') || '').toLowerCase();
+      if (!ct.includes('application/json')) return null;
+      return await r.json();
+    } catch {
+      return null;
+    }
   }
-  if (r2.status === 'fulfilled') {
-    const a2 = await r2.value.json();
-    a2.forEach(row => arr.push({ x: new Date(row.time_start).getTime(), y: row.NOK_per_kWh }));
+
+  const [a1, a2] = await Promise.all([safeGet(urlToday), safeGet(urlTomorrow)]);
+
+  const series = [];
+  if (Array.isArray(a1)) {
+    for (const row of a1) series.push({ x: new Date(row.time_start).getTime(), y: row.NOK_per_kWh });
+  }
+  if (Array.isArray(a2)) {
+    for (const row of a2) series.push({ x: new Date(row.time_start).getTime(), y: row.NOK_per_kWh });
   }
 
-  arr.sort((a, b) => a.x - b.x);
-  return arr;
+  series.sort((a, b) => a.x - b.x);
+
+  return { series, hasTomorrow: Array.isArray(a2) && a2.length > 0 };
 }
 
 // ---------- renderer ----------
@@ -127,7 +140,7 @@ function startOfCurrentHour(ts) {
 function renderChart(series, { unit, timeUnit, splitAfterNow, label }) {
   const { avg } = setKPIs(series, unit, timeUnit === 'hour');
 
-  // Avg reference
+  // Snitt-linje
   const avgLine = (Number.isFinite(avg) && series.length >= 2)
     ? [
         { x: series[0].x, y: avg },
@@ -135,13 +148,12 @@ function renderChart(series, { unit, timeUnit, splitAfterNow, label }) {
       ]
     : [];
 
-  // Colors
   const baseColor   = '#7c9aff';
   const futureColor = '#f59e0b';
   const avgColor    = 'rgba(255,255,255,0.7)';
-  const tickColor   = '#0b1020';
+  const tickColor   = '#0b1020'; // mørke akser/labels
 
-  // Current hour marker (power)
+  // Marker nåværende time (for strøm)
   let nowPoint = null;
   if (timeUnit === 'hour' && series.length) {
     const hourStart = startOfCurrentHour(Date.now());
@@ -160,7 +172,6 @@ function renderChart(series, { unit, timeUnit, splitAfterNow, label }) {
     segment: {}
   };
 
-  // Different color for future (hourly)
   if (splitAfterNow) {
     dsLine.segment = {
       borderColor(ctx) {
@@ -212,7 +223,6 @@ function renderChart(series, { unit, timeUnit, splitAfterNow, label }) {
           type: 'time',
           time: {
             unit: timeUnit,
-            // enkle norske 24t/dag-format uten locale-objekt
             displayFormats: { hour: 'HH', day: 'd. MMM' },
             tooltipFormat: timeUnit === 'hour' ? 'HH:mm' : 'd. MMM yyyy'
           },
@@ -248,8 +258,11 @@ export async function loadMarket() {
       note.textContent = 'Kilde: exchangerate.host / frankfurter.app – 12 mnd';
       renderChart(await fetchFx('NOK', 'SEK', 12), { unit: 'SEK', timeUnit: 'day',  splitAfterNow: false, label: 'NOK → SEK' });
     } else if (id === 'power-no1') {
-      note.textContent = 'Kilde: hvakosterstrommen.no – i dag + i morgen (NO1)';
-      renderChart(await fetchPowerNO1(),             { unit: 'kr/kWh', timeUnit: 'hour', splitAfterNow: true,  label: 'Strøm (NO1)' });
+      const { series, hasTomorrow } = await fetchPowerNO1();
+      note.textContent = hasTomorrow
+        ? 'Kilde: hvakosterstrommen.no – i dag + i morgen (NO1)'
+        : 'Kilde: hvakosterstrommen.no – i dag (i morgen publiseres vanligvis midt på dagen)';
+      renderChart(series, { unit: 'kr/kWh', timeUnit: 'hour', splitAfterNow: true, label: 'Strøm (NO1)' });
     }
   } catch (e) {
     if (note) note.textContent = `Kunne ikke hente data: ${e.message || e}`;
