@@ -1,0 +1,216 @@
+<!-- KPI SECTION (updates with filters) -->
+<div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+  <div class="p-4 bg-white rounded-xl shadow"><div class="text-sm text-gray-500">Companies</div><div id="kpiCompanies" class="text-2xl font-semibold">{{ kpis.companies }}</div></div>
+  <div class="p-4 bg-white rounded-xl shadow"><div class="text-sm text-gray-500">Loans</div><div id="kpiLoans" class="text-2xl font-semibold">{{ kpis.loans }}</div></div>
+  <div class="p-4 bg-white rounded-xl shadow"><div class="text-sm text-gray-500">Invested</div><div id="kpiInvested" class="text-2xl font-semibold">{{ '%.0f' % kpis.invested }}</div></div>
+  <div class="p-4 bg-white rounded-xl shadow"><div class="text-sm text-gray-500">Accum. interest</div><div id="kpiAccInt" class="text-2xl font-semibold">{{ '%.0f' % kpis.accumulated_interest }}</div></div>
+  <div class="p-4 bg-white rounded-xl shadow"><div class="text-sm text-gray-500">Est. total interest</div><div id="kpiEstInt" class="text-2xl font-semibold">{{ '%.0f' % kpis.est_total_interest }}</div></div>
+</div>
+
+<!-- COMPANY SUMMARY -->
+<div class="bg-white rounded-xl shadow p-4 mb-6">
+  <div class="flex items-center justify-between mb-2">
+    <h2 class="text-lg font-semibold">By company</h2>
+    <!-- Sorting for this section only -->
+    <div class="flex items-center gap-2 text-sm">
+      <span class="text-gray-500">Sort:</span>
+      <select id="companySortKey" class="border rounded px-2 py-1">
+        <option value="loans"># loans</option>
+        <option value="invested">Invested</option>
+        <option value="accumulated_interest">Accum. interest</option>
+        <option value="estimated_total_interest">Est. total interest</option>
+      </select>
+      <select id="companySortDir" class="border rounded px-2 py-1">
+        <option value="desc">Desc</option>
+        <option value="asc">Asc</option>
+      </select>
+    </div>
+  </div>
+  <div class="overflow-auto">
+    <table class="min-w-full text-sm">
+      <thead>
+        <tr class="text-left border-b">
+          <th class="py-2 pr-4">Company</th>
+          <th class="py-2 pr-4">Loans</th>
+          <th class="py-2 pr-4">Active</th>
+          <th class="py-2 pr-4">Repaid</th>
+          <th class="py-2 pr-4">Invested</th>
+          <th class="py-2 pr-4">Accum. interest</th>
+          <th class="py-2 pr-4">Est. total interest</th>
+        </tr>
+      </thead>
+      <tbody id="companyBody">
+        {% for r in by_company %}
+        <tr class="border-b last:border-0">
+          <td class="py-1 pr-4">{{ r.Company }}</td>
+          <td class="py-1 pr-4">{{ r.loans }}</td>
+          <td class="py-1 pr-4">{{ r.active_loans }}</td>
+          <td class="py-1 pr-4">{{ r.repaid_loans }}</td>
+          <td class="py-1 pr-4">{{ '%.0f' % r.invested }}</td>
+          <td class="py-1 pr-4">{{ '%.0f' % r.accumulated_interest }}</td>
+          <td class="py-1 pr-4">{{ '%.0f' % r.estimated_total_interest }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- LOANS (cards). Sorting control for this section only -->
+<div class="flex items-center justify-between mb-2">
+  <h2 class="text-lg font-semibold">Loans</h2>
+  <div class="flex items-center gap-2 text-sm">
+    <span class="text-gray-500">Sort:</span>
+    <select id="loanSortKey" class="border rounded px-2 py-1">
+      <option value="return">% return</option>
+      <option value="invested">Invested</option>
+      <option value="acc">Accum. interest</option>
+      <option value="interest">Rate</option>
+      <option value="duration">Duration</option>
+      <option value="payoff">Payoff date</option>
+    </select>
+    <select id="loanSortDir" class="border rounded px-2 py-1">
+      <option value="desc">Desc</option>
+      <option value="asc">Asc</option>
+    </select>
+  </div>
+</div>
+
+<div id="loanGrid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+  {% for r in by_loan %}
+  <div class="loan-card bg-white rounded-xl shadow p-4 border"
+       data-company="{{ r.Company }}"
+       data-loan="{{ r.loan_id }}"
+       data-status="{{ r.status }}"
+       data-invested="{{ '%.2f' % r.invested }}"
+       data-interest="{{ '%.2f' % r.interest }}"
+       data-duration="{{ r.duration }}"
+       data-acc="{{ '%.2f' % r.accumulated_interest }}"
+       data-estint="{{ '%.2f' % r.estimated_total_interest }}"
+       data-return="{{ '%.2f' % r.interest_return_pct }}"
+       data-payoff="{{ r.estimated_tilbakebetalt_date }}">
+    <div class="flex items-start justify-between mb-2">
+      <div>
+        <div class="text-sm text-gray-500">{{ r.Company }}</div>
+        <div class="text-lg font-semibold">Loan #{{ r.loan_id }}</div>
+      </div>
+      <div class="text-right">
+        {% if r.status == "repaid" %}
+          <span class="text-xs inline-block px-2 py-1 rounded-full bg-green-100 text-green-700 border border-green-300">Repaid</span>
+        {% else %}
+          <span class="text-xs inline-block px-2 py-1 rounded-full bg-yellow-100 text-yellow-700 border border-yellow-300">Active</span>
+        {% endif %}
+        <div class="text-xs text-gray-500 mt-1">Rate</div>
+        <div class="text-base font-medium">{{ '%.2f' % r.interest }}%</div>
+      </div>
+    </div>
+    <div class="grid grid-cols-2 gap-2 text-sm">
+      <div class="bg-gray-50 rounded p-2"><div class="text-xs text-gray-500">Duration</div><div class="font-medium">{{ r.duration }} m</div></div>
+      <div class="bg-gray-50 rounded p-2"><div class="text-xs text-gray-500">Invested</div><div class="font-medium">{{ '%.0f' % r.invested }}</div></div>
+      <div class="bg-gray-50 rounded p-2"><div class="text-xs text-gray-500">Accum. interest</div><div class="font-medium">{{ '%.0f' % r.accumulated_interest }}</div></div>
+      <div class="bg-gray-50 rounded p-2"><div class="text-xs text-gray-500">Est. total interest</div><div class="font-medium">{{ '%.0f' % r.estimated_total_interest }}</div></div>
+      <div class="bg-gray-50 rounded p-2"><div class="text-xs text-gray-500">% return</div><div class="font-medium">{{ '%.1f' % r.interest_return_pct }}%</div></div>
+      <div class="bg-gray-50 rounded p-2"><div class="text-xs text-gray-500">Payoff</div><div class="font-medium">{{ r.estimated_tilbakebetalt_date }}</div></div>
+    </div>
+    <div class="text-xs text-gray-500 mt-2">Period: {{ r.start_date }} → {{ r.end_date }}</div>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- GLOBAL filter/sort JS (affects KPIs + company table + cards) -->
+<script>
+  function num(x){ const n=parseFloat(String(x).replace(/\s/g,'').replace(',','.')); return isNaN(n)?0:n }
+  function parseDate(x){ const t=Date.parse(x); return isNaN(t)?0:t }
+  function visibleCards(){ return Array.from(document.querySelectorAll('.loan-card')).filter(c=>c.style.display!=='none'); }
+
+  function applyGlobalFilters(){
+    const txt=(document.getElementById('filterText')?.value||'').toLowerCase();
+    const comp=(document.getElementById('companySelect')?.value||'').toLowerCase();
+    const status=(document.getElementById('statusSelect')?.value||'').toLowerCase();
+    document.querySelectorAll('.loan-card').forEach(card=>{
+      const c=(card.dataset.company||'').toLowerCase();
+      const id=(card.dataset.loan||'').toLowerCase();
+      const st=(card.dataset.status||'').toLowerCase();
+      const matchTxt=!txt || c.includes(txt) || id.includes(txt);
+      const matchComp=!comp || c===comp;
+      const matchStatus=!status || st===status;
+      card.style.display = (matchTxt && matchComp && matchStatus) ? '' : 'none';
+      if (st==='repaid') { card.classList.add('border-green-300'); } else { card.classList.remove('border-green-300'); }
+    });
+    recomputeKPIs();
+    recomputeCompanies();
+  }
+
+  function recomputeKPIs(){
+    const cards=visibleCards();
+    const companies=new Set(cards.map(c=>c.dataset.company));
+    let invested=0, acc=0, est=0;
+    cards.forEach(c=>{ invested+=num(c.dataset.invested); acc+=num(c.dataset.acc); est+=num(c.dataset.estint); });
+    document.getElementById('kpiCompanies').textContent = companies.size;
+    document.getElementById('kpiLoans').textContent = cards.length;
+    document.getElementById('kpiInvested').textContent = Math.round(invested);
+    document.getElementById('kpiAccInt').textContent = Math.round(acc);
+    document.getElementById('kpiEstInt').textContent = Math.round(est);
+  }
+
+  function recomputeCompanies(){
+    const rows = {};
+    visibleCards().forEach(c=>{
+      const co=c.dataset.company; const st=c.dataset.status;
+      rows[co]=rows[co]||{Company:co, loans:0, active:0, repaid:0, invested:0, acc:0, est:0};
+      rows[co].loans += 1; rows[co][st] += 1;
+      rows[co].invested += num(c.dataset.invested);
+      rows[co].acc      += num(c.dataset.acc);
+      rows[co].est      += num(c.dataset.estint);
+    });
+    const arr=Object.values(rows);
+    const key=document.getElementById('companySortKey')?.value||'loans';
+    const dir=document.getElementById('companySortDir')?.value||'desc';
+    arr.sort((a,b)=>{ const A=(key==='loans')?a.loans:(key==='invested'?a.invested:(key==='accumulated_interest'?a.acc:a.est)); const B=(key==='loans')?b.loans:(key==='invested'?b.invested:(key==='accumulated_interest'?b.acc:b.est)); return dir==='asc'?A-B:B-A; });
+    const tbody=document.getElementById('companyBody'); if(!tbody) return;
+    tbody.innerHTML = arr.map(r=>`
+      <tr class="border-b last:border-0">
+        <td class="py-1 pr-4">${r.Company}</td>
+        <td class="py-1 pr-4">${r.loans}</td>
+        <td class="py-1 pr-4">${r.active||0}</td>
+        <td class="py-1 pr-4">${r.repaid||0}</td>
+        <td class="py-1 pr-4">${Math.round(r.invested)}</td>
+        <td class="py-1 pr-4">${Math.round(r.acc)}</td>
+        <td class="py-1 pr-4">${Math.round(r.est)}</td>
+      </tr>`).join('');
+  }
+
+  function sortLoans(){
+    const key=document.getElementById('loanSortKey')?.value||'return';
+    const dir=document.getElementById('loanSortDir')?.value||'desc';
+    const grid=document.getElementById('loanGrid');
+    const cards=Array.from(grid.children).filter(c=>c.style.display!=='none');
+    const toVal=c=>{
+      if(key==='payoff') return parseDate(c.dataset.payoff);
+      if(key==='return') return num(c.dataset.return);
+      if(key==='acc') return num(c.dataset.acc);
+      if(key==='invested') return num(c.dataset.invested);
+      if(key==='interest') return num(c.dataset.interest);
+      if(key==='duration') return num(c.dataset.duration);
+      return 0;
+    };
+    cards.sort((a,b)=> dir==='asc' ? (toVal(a)-toVal(b)) : (toVal(b)-toVal(a)) );
+    cards.forEach(c=>grid.appendChild(c));
+  }
+
+  // Wire up
+  ['filterText','companySelect','statusSelect','companySortKey','companySortDir','loanSortKey','loanSortDir'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(!el) return;
+    el.addEventListener('input', ()=>{ applyGlobalFilters(); sortLoans(); });
+    el.addEventListener('change', ()=>{ applyGlobalFilters(); sortLoans(); });
+  });
+  const resetBtn=document.getElementById('resetFilters');
+  if (resetBtn){
+    resetBtn.addEventListener('click', ()=>{
+      ['filterText','companySelect','statusSelect'].forEach(i=>{ const el=document.getElementById(i); if(el){ el.value=''; }});
+      applyGlobalFilters(); sortLoans();
+    });
+  }
+  window.addEventListener('DOMContentLoaded', ()=>{ applyGlobalFilters(); sortLoans(); });
+</script>

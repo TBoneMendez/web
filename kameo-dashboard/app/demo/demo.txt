@@ -1,0 +1,37 @@
+Lager For Alle AS - 4483 | Løpetid: 11 m | Rente: 15,00%
+Tegnet/Kjøpt: 2 000,00 | Tilbakebetalt/solgt: 2 000,00 | Gjenstående beløp: 0,00
+Dato	Transaksjon	Beløp	Valuta	Vekslingskurs per 100 NOK	Beløp i NOK
+2024-02-06	Tildeling	−2 000,00	NOK	100,00	−2 000,00
+2024-02-23	Renteinntekt	14,79	NOK	100,00	14,79
+2024-03-25	Renteinntekt	25,00	NOK	100,00	25,00
+2024-04-23	Renteinntekt	25,00	NOK	100,00	25,00
+2024-05-23	Renteinntekt	25,00	NOK	100,00	25,00
+2024-06-24	Renteinntekt	25,00	NOK	100,00	25,00
+2024-07-23	Renteinntekt	25,00	NOK	100,00	25,00
+2024-08-23	Renteinntekt	25,00	NOK	100,00	25,00
+2024-09-12	Renteinntekt	16,44	NOK	100,00	16,44
+2024-09-12	Tilbakebetaling	2 000,00	NOK	100,00	2 000,00
+Totale renteinntekter	181,23	NOK	100,00	181,23
+BFM 8 AS - 4481 | Løpetid: 26 m | Rente: 14,00%
+Tegnet/Kjøpt: 2 000,00 | Tilbakebetalt/solgt: 0,00 | Gjenstående beløp: 2 000,00
+Dato	Transaksjon	Beløp	Valuta	Vekslingskurs per 100 NOK	Beløp i NOK
+2024-02-09	Tildeling	−2 000,00	NOK	100,00	−2 000,00
+2024-03-12	Renteinntekt	23,33	NOK	100,00	23,33
+2024-04-09	Renteinntekt	23,33	NOK	100,00	23,33
+2024-05-10	Renteinntekt	23,33	NOK	100,00	23,33
+2024-06-11	Renteinntekt	23,33	NOK	100,00	23,33
+2024-07-09	Renteinntekt	23,33	NOK	100,00	23,33
+2024-08-09	Renteinntekt	23,33	NOK	100,00	23,33
+2024-09-09	Renteinntekt	23,33	NOK	100,00	23,33
+2024-10-09	Renteinntekt	23,33	NOK	100,00	23,33
+2024-11-11	Renteinntekt	23,33	NOK	100,00	23,33
+2024-12-09	Renteinntekt	23,33	NOK	100,00	23,33
+2025-01-10	Renteinntekt	23,33	NOK	100,00	23,33
+2025-02-11	Renteinntekt	23,33	NOK	100,00	23,33
+2025-03-10	Renteinntekt	23,33	NOK	100,00	23,33
+2025-04-10	Renteinntekt	23,33	NOK	100,00	23,33
+2025-05-12	Renteinntekt	23,33	NOK	100,00	23,33
+2025-06-10	Renteinntekt	23,33	NOK	100,00	23,33
+2025-07-11	Renteinntekt	23,33	NOK	100,00	23,33
+2025-08-11	Renteinntekt	23,33	NOK	100,00	23,33
+Totale renteinntekter	419,94	NOK	100,00	419,94

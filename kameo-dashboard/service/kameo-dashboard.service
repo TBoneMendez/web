@@ -1,0 +1,16 @@
+[Unit]
+Description=Kameo Dashboard (FastAPI)
+After=network.target
+
+
+[Service]
+# Adjust these paths for your Pi setup
+User=pi
+WorkingDirectory=/home/pi/github/raspberry-projects/kameo-dashboard
+ExecStart=/home/pi/github/raspberry-projects/kameo-dashboard/.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8090 --proxy-headers
+Restart=always
+RestartSec=5
+
+
+[Install]
+WantedBy=multi-user.target
