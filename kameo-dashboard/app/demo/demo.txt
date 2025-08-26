@@ -1,4 +1,4 @@
-Lager For Alle AS - 4483 | Løpetid: 11 m | Rente: 15,00%
+TBones eiendomsimperie AS - 4483 | Løpetid: 11 m | Rente: 15,00%
 Tegnet/Kjøpt: 2 000,00 | Tilbakebetalt/solgt: 2 000,00 | Gjenstående beløp: 0,00
 Dato	Transaksjon	Beløp	Valuta	Vekslingskurs per 100 NOK	Beløp i NOK
 2024-02-06	Tildeling	−2 000,00	NOK	100,00	−2 000,00
@@ -12,7 +12,7 @@ Dato	Transaksjon	Beløp	Valuta	Vekslingskurs per 100 NOK	Beløp i NOK
 2024-09-12	Renteinntekt	16,44	NOK	100,00	16,44
 2024-09-12	Tilbakebetaling	2 000,00	NOK	100,00	2 000,00
 Totale renteinntekter	181,23	NOK	100,00	181,23
-BFM 8 AS - 4481 | Løpetid: 26 m | Rente: 14,00%
+Butt Holding AS - 4481 | Løpetid: 26 m | Rente: 14,00%
 Tegnet/Kjøpt: 2 000,00 | Tilbakebetalt/solgt: 0,00 | Gjenstående beløp: 2 000,00
 Dato	Transaksjon	Beløp	Valuta	Vekslingskurs per 100 NOK	Beløp i NOK
 2024-02-09	Tildeling	−2 000,00	NOK	100,00	−2 000,00
