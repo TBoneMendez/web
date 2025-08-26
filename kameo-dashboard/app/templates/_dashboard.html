@@ -140,19 +140,21 @@
 
   // ---------- global filters ----------
   function applyGlobalFilters(){
-    const txt=(q('filterText')?.value||'').toLowerCase();
-    const comp=(q('companySelect')?.value||'').toLowerCase();
-    const status=(q('statusSelect')?.value||'').toLowerCase();
+    const txt=(document.getElementById('filterText')?.value||'').toLowerCase();
+    const status=(document.getElementById('statusSelect')?.value||'').toLowerCase();
+
     document.querySelectorAll('.loan-card').forEach(card=>{
       const c=(card.dataset.company||'').toLowerCase();
       const id=(card.dataset.loan||'').toLowerCase();
       const st=(card.dataset.status||'').toLowerCase();
+
       const matchTxt=!txt || c.includes(txt) || id.includes(txt);
-      const matchComp=!comp || c===comp;
       const matchStatus=!status || st===status;
-      card.style.display = (matchTxt && matchComp && matchStatus) ? '' : 'none';
+
+      card.style.display = (matchTxt && matchStatus) ? '' : 'none';
       if (st==='repaid') card.classList.add('border-green-300'); else card.classList.remove('border-green-300');
     });
+
     recomputeKPIs();
     recomputeCompanies();
   }
@@ -220,7 +222,7 @@
 
   // ---------- wiring ----------
   function wire(){
-    ['filterText','companySelect','statusSelect'].forEach(id=>{
+    ['filterText','statusSelect'].forEach(id=>{
       const el=q(id); if(!el) return;
       el.addEventListener('input', ()=>{ applyGlobalFilters(); sortLoans(); });
       el.addEventListener('change', ()=>{ applyGlobalFilters(); sortLoans(); });

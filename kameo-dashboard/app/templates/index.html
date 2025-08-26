@@ -20,16 +20,6 @@
           </div>
 
           <div>
-            <label class="text-xs text-gray-500">Company</label>
-            <select id="companySelect" class="mt-1 w-full border rounded-lg px-3 py-2">
-              <option value="">All companies</option>
-              {% for c in by_company %}
-                <option value="{{ c.Company }}">{{ c.Company }}</option>
-              {% endfor %}
-            </select>
-          </div>
-
-          <div>
             <label class="text-xs text-gray-500">Loan status</label>
             <select id="statusSelect" class="mt-1 w-full border rounded-lg px-3 py-2">
               <option value="">All</option>
