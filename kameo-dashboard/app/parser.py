@@ -49,8 +49,7 @@ def _parse_table(block: str) -> pd.DataFrame:
             "currency": (currency or "NOK").strip() or "NOK",
         })
 
-    df = pd.DataFrame(parsed).dropna(subset=["date"]).reset_index(drop=True)
-    return df
+    return pd.DataFrame(parsed).dropna(subset=["date"]).reset_index(drop=True)
 
 # ---------- Public API ----------
 def parse_text_to_tx_df(raw: str) -> pd.DataFrame:
@@ -61,7 +60,7 @@ def parse_text_to_tx_df(raw: str) -> pd.DataFrame:
     rows = []
     for b in blocks:
         h = _parse_header(b.splitlines()[0])
-        if not h:
+        if not h: 
             continue
         t = _parse_table(b)
         if t.empty:
@@ -104,14 +103,6 @@ def expand_to_daily(tx_df: pd.DataFrame) -> pd.DataFrame:
                     .cumsum())["amount"].values
         daily["accumulated_interest"] = int_cum
 
-        # principal repaid (cumulative)
-        is_pr = g["transaction_norm"].eq("principal_repaid")
-        pr_cum = (g.loc[is_pr, ["date", "amount"]]
-                    .groupby("date").sum()
-                    .reindex(idx, fill_value=0.0)
-                    .cumsum())["amount"].values
-        daily["principal_repaid_cum"] = pr_cum
-
         # invested & repayment status
         invested = -g.loc[g["transaction_norm"] == "allocation", "amount"].sum()
         repaid_sum =  g.loc[g["transaction_norm"] == "principal_repaid", "amount"].sum()
@@ -119,14 +110,14 @@ def expand_to_daily(tx_df: pd.DataFrame) -> pd.DataFrame:
         is_repaid = bool(repaid_sum >= invested and repaid_sum > 0)
         daily["is_repaid"] = is_repaid
 
-        # NEW: last payment (rente/rentetillegg/avdrag)
+        # last payment (interest/penalty/principal)
         last_payment = g.loc[
             g["transaction_norm"].isin(["interest", "interest_penalty", "principal_repaid"]),
             "date"
         ].max()
         daily["last_payment_date"] = last_payment
 
-        # expected interest model (unchanged)
+        # expected interest (simple model)
         monthly_interest = invested * (meta["interest_rate"] / 100.0) / 12.0
         daily["estimated_total_interest"] = float(monthly_interest * meta["duration_months"])
         daily["interest_return_pct"] = (
@@ -152,20 +143,12 @@ def build_views(daily_df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
             end_date=("Date", "max"),
             invested=("invested", "max"),
             accumulated_interest=("accumulated_interest", "max"),
-            principal_repaid=("principal_repaid_cum", "max"),
             estimated_total_interest=("estimated_total_interest", "max"),
             interest_return_pct=("interest_return_pct", "max"),
-            last_payment_date=("last_payment_date", "max"),  # <--- NEW
+            last_payment_date=("last_payment_date", "max"),
             repaid=("is_repaid", "max"),
         )
-        .assign(
-            status=lambda d: d["repaid"].map({True: "repaid", False: "active"}),
-            # ROI = avdrag + renter (beløp)
-            roi_amount=lambda d: d["principal_repaid"].fillna(0) + d["accumulated_interest"].fillna(0),
-            # ROI % av investert
-            roi_pct=lambda d: ((d["principal_repaid"].fillna(0) + d["accumulated_interest"].fillna(0))
-                               / d["invested"].replace(0, pd.NA) * 100).fillna(0.0),
-        )
+        .assign(status=lambda d: d["repaid"].map({True: "repaid", False: "active"}))
     )
 
     by_company = (by_loan.groupby(["Company"], as_index=False)
@@ -177,9 +160,7 @@ def build_views(daily_df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
             active_loans=("status", lambda s: (s == "active").sum()),
             repaid_loans=("status", lambda s: (s == "repaid").sum()),
         )
-        .assign(
-            interest_return_pct=lambda d: (d["accumulated_interest"] / d["estimated_total_interest"].replace(0, pd.NA)) * 100
-        )
+        .assign(interest_return_pct=lambda d: (d["accumulated_interest"] / d["estimated_total_interest"].replace(0, pd.NA)) * 100)
         .fillna({"interest_return_pct": 0.0})
         .sort_values(["Company"]).reset_index(drop=True)
     )

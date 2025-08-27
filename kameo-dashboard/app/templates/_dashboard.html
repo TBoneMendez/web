@@ -1,10 +1,25 @@
 <!-- KPI SECTION (updates with filters) -->
 <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
-  <div class="p-4 bg-white rounded-xl shadow"><div class="text-sm text-gray-500">Companies</div><div id="kpiCompanies" class="text-2xl font-semibold">{{ kpis.companies }}</div></div>
-  <div class="p-4 bg-white rounded-xl shadow"><div class="text-sm text-gray-500">Loans</div><div id="kpiLoans" class="text-2xl font-semibold">{{ kpis.loans }}</div></div>
-  <div class="p-4 bg-white rounded-xl shadow"><div class="text-sm text-gray-500">Invested</div><div id="kpiInvested" class="text-2xl font-semibold">{{ '%.0f' % kpis.invested }}</div></div>
-  <div class="p-4 bg-white rounded-xl shadow"><div class="text-sm text-gray-500">Accum. interest</div><div id="kpiAccInt" class="text-2xl font-semibold">{{ '%.0f' % kpis.accumulated_interest }}</div></div>
-  <div class="p-4 bg-white rounded-xl shadow"><div class="text-sm text-gray-500">Est. total interest</div><div id="kpiEstInt" class="text-2xl font-semibold">{{ '%.0f' % kpis.est_total_interest }}</div></div>
+  <div class="p-4 bg-white rounded-xl shadow">
+    <div class="text-sm text-gray-500">Companies</div>
+    <div id="kpiCompanies" class="text-2xl font-semibold">{{ kpis.companies }}</div>
+  </div>
+  <div class="p-4 bg-white rounded-xl shadow">
+    <div class="text-sm text-gray-500">Loans</div>
+    <div id="kpiLoans" class="text-2xl font-semibold">{{ kpis.loans }}</div>
+  </div>
+  <div class="p-4 bg-white rounded-xl shadow">
+    <div class="text-sm text-gray-500">Invested</div>
+    <div id="kpiInvested" class="text-2xl font-semibold">{{ '%.0f' % kpis.invested }}</div>
+  </div>
+  <div class="p-4 bg-white rounded-xl shadow">
+    <div class="text-sm text-gray-500">Accum. interest</div>
+    <div id="kpiAccInt" class="text-2xl font-semibold">{{ '%.0f' % kpis.accumulated_interest }}</div>
+  </div>
+  <div class="p-4 bg-white rounded-xl shadow">
+    <div class="text-sm text-gray-500">Est. total interest</div>
+    <div id="kpiEstInt" class="text-2xl font-semibold">{{ '%.0f' % kpis.est_total_interest }}</div>
+  </div>
 </div>
 
 <!-- COMPANY SUMMARY (sortable) -->
@@ -55,7 +70,7 @@
   </div>
 </div>
 
-<!-- LOANS (cards). Sorting control for this section only -->
+<!-- LOANS (cards) with local sort -->
 <div class="flex items-center justify-between mb-2">
   <h2 class="text-lg font-semibold">Loans</h2>
   <div class="flex items-center gap-2 text-sm">
@@ -64,11 +79,9 @@
       <option value="returnpct">% return</option>
       <option value="invested">Invested</option>
       <option value="acc">Accum. interest</option>
-      <option value="roiamount">ROI amount</option>
-      <option value="roipct">ROI %</option>
       <option value="interest">Rate</option>
       <option value="duration">Duration</option>
-      <option value="lastpay">Last payment</option> <!-- renamed from payoff -->
+      <option value="lastpay">Last payment</option>
     </select>
     <select id="loanSortDir" class="border rounded px-2 py-1">
       <option value="desc">Desc</option>
@@ -89,8 +102,6 @@
        data-acc="{{ '%.2f' % r.accumulated_interest }}"
        data-est="{{ '%.2f' % r.estimated_total_interest }}"
        data-returnpct="{{ '%.2f' % r.interest_return_pct }}"
-       data-roiamount="{{ '%.2f' % r.roi_amount }}"
-       data-roipct="{{ '%.2f' % r.roi_pct }}"
        data-lastpay="{{ r.last_payment_date }}">
     <div class="flex items-start justify-between mb-2">
       <div>
@@ -99,9 +110,9 @@
       </div>
       <div class="text-right">
         {% if r.status == "repaid" %}
-          <span class="text-xs inline-block px-2 py-1 rounded-full bg-green-100 text-green-700 border border-green-300">Repaid</span>
+          <span class="status-badge bg-green-100 text-green-700 border-green-300">Repaid</span>
         {% else %}
-          <span class="text-xs inline-block px-2 py-1 rounded-full bg-yellow-100 text-yellow-700 border border-yellow-300">Active</span>
+          <span class="status-badge bg-yellow-100 text-yellow-700 border-yellow-300">Active</span>
         {% endif %}
         <div class="text-xs text-gray-500 mt-1">Rate</div>
         <div class="text-base font-medium">{{ '%.2f' % r.interest }}%</div>
@@ -113,9 +124,6 @@
       <div class="bg-gray-50 rounded p-2"><div class="text-xs text-gray-500">Accum. interest</div><div class="font-medium">{{ '%.0f' % r.accumulated_interest }}</div></div>
       <div class="bg-gray-50 rounded p-2"><div class="text-xs text-gray-500">Est. total interest</div><div class="font-medium">{{ '%.0f' % r.estimated_total_interest }}</div></div>
       <div class="bg-gray-50 rounded p-2"><div class="text-xs text-gray-500">% return</div><div class="font-medium">{{ '%.1f' % r.interest_return_pct }}%</div></div>
-      <div class="bg-gray-50 rounded p-2"><div class="text-xs text-gray-500">ROI (amount)</div><div class="font-medium">{{ '%.0f' % r.roi_amount }}</div></div>
-      <div class="bg-gray-50 rounded p-2"><div class="text-xs text-gray-500">ROI %</div><div class="font-medium">{{ '%.1f' % r.roi_pct }}%</div></div>
-      <!-- Replaced Payoff with Last payment -->
       <div class="bg-gray-50 rounded p-2"><div class="text-xs text-gray-500">Last payment</div><div class="font-medium">{{ r.last_payment_date }}</div></div>
     </div>
     <div class="text-xs text-gray-500 mt-2">Period: {{ r.start_date }} → {{ r.end_date }}</div>
@@ -127,24 +135,29 @@
   // ---------- helpers ----------
   function num(x){ const n=parseFloat(String(x).replace(/\s/g,'').replace(',','.')); return isNaN(n)?0:n }
   function parseDate(x){ const t=Date.parse(x); return isNaN(t)?0:t }
-  const $ = (id)=>document.getElementById(id)
+  function q(id){ return document.getElementById(id) }
   function visibleCards(){ return Array.from(document.querySelectorAll('.loan-card')).filter(c=>c.style.display!=='none') }
+  function daysSince(dateStr){ const t=Date.parse(dateStr); if(isNaN(t)) return Infinity; return (Date.now()-t)/(1000*60*60*24) }
 
   // ---------- global filters ----------
   function applyGlobalFilters(){
-    const txt=($('#filterText')?.value||'').toLowerCase();
-    const status=($('#statusSelect')?.value||'').toLowerCase();
+    const txt=(q('filterText')?.value||'').toLowerCase();
+    const status=(q('statusSelect')?.value||'').toLowerCase();
+
     document.querySelectorAll('.loan-card').forEach(card=>{
       const c=(card.dataset.company||'').toLowerCase();
       const id=(card.dataset.loan||'').toLowerCase();
       const st=(card.dataset.status||'').toLowerCase();
+
       const matchTxt=!txt || c.includes(txt) || id.includes(txt);
       const matchStatus=!status || st===status;
+
       card.style.display = (matchTxt && matchStatus) ? '' : 'none';
-      if (st==='repaid') card.classList.add('border-green-300'); else card.classList.remove('border-green-300');
     });
+
     recomputeKPIs();
     recomputeCompanies();
+    markDelayed();   // oppdater badges etter filtrering
   }
 
   // ---------- KPIs ----------
@@ -153,11 +166,11 @@
     const companies=new Set(cards.map(c=>c.dataset.company));
     let invested=0, acc=0, est=0;
     cards.forEach(c=>{ invested+=num(c.dataset.invested); acc+=num(c.dataset.acc); est+=num(c.dataset.est); });
-    $('#kpiCompanies').textContent = companies.size;
-    $('#kpiLoans').textContent = cards.length;
-    $('#kpiInvested').textContent = Math.round(invested);
-    $('#kpiAccInt').textContent = Math.round(acc);
-    $('#kpiEstInt').textContent = Math.round(est);
+    q('kpiCompanies').textContent = companies.size;
+    q('kpiLoans').textContent = cards.length;
+    q('kpiInvested').textContent = Math.round(invested);
+    q('kpiAccInt').textContent = Math.round(acc);
+    q('kpiEstInt').textContent = Math.round(est);
   }
 
   // ---------- company table from visible cards ----------
@@ -172,11 +185,11 @@
       rows[co].est      += num(c.dataset.est);
     });
     const arr=Object.values(rows);
-    const key=$('companySortKey')?.value||'loans';
-    const dir=$('companySortDir')?.value||'desc';
+    const key=q('companySortKey')?.value||'loans';
+    const dir=q('companySortDir')?.value||'desc';
     const pick=(r)=> key==='loans'? r.loans : (key==='invested'? r.invested : (key==='acc'? r.acc : r.est));
     arr.sort((a,b)=> dir==='asc' ? (pick(a)-pick(b)) : (pick(b)-pick(a)) );
-    const tbody=$('companyBody'); if(!tbody) return;
+    const tbody=q('companyBody'); if(!tbody) return;
     tbody.innerHTML = arr.map(r=>`
       <tr class="border-b last:border-0">
         <td class="py-1 pr-4">${r.Company}</td>
@@ -189,11 +202,34 @@
       </tr>`).join('');
   }
 
+  // ---------- delayed badge ----------
+  function markDelayed(){
+    document.querySelectorAll('.loan-card').forEach(card=>{
+      const st=(card.dataset.status||'').toLowerCase();
+      const badge=card.querySelector('.status-badge');
+      if(!badge) return;
+
+      if(st==='repaid'){
+        badge.textContent='Repaid';
+        badge.className='status-badge bg-green-100 text-green-700 border-green-300';
+        return;
+      }
+      const d=daysSince(card.dataset.lastpay||'');
+      if(d>31){
+        badge.textContent='Active (Delayed)';
+        badge.className='status-badge bg-red-100 text-red-700 border-red-300';
+      }else{
+        badge.textContent='Active';
+        badge.className='status-badge bg-yellow-100 text-yellow-700 border-yellow-300';
+      }
+    });
+  }
+
   // ---------- loan sort ----------
   function sortLoans(){
-    const key=$('loanSortKey')?.value||'returnpct';
-    const dir=$('loanSortDir')?.value||'desc';
-    const grid=$('loanGrid');
+    const key=q('loanSortKey')?.value||'returnpct';
+    const dir=q('loanSortDir')?.value||'desc';
+    const grid=q('loanGrid');
     const cards=Array.from(grid.children).filter(c=>c.style.display!=='none');
     const toVal=c=>{
       if(key==='lastpay')   return parseDate(c.dataset.lastpay);
@@ -202,8 +238,6 @@
       if(key==='invested')  return num(c.dataset.invested);
       if(key==='interest')  return num(c.dataset.interest);
       if(key==='duration')  return num(c.dataset.duration);
-      if(key==='roiamount') return num(c.dataset.roiamount);
-      if(key==='roipct')    return num(c.dataset.roipct);
       return 0;
     };
     cards.sort((a,b)=> dir==='asc' ? (toVal(a)-toVal(b)) : (toVal(b)-toVal(a)) );
@@ -213,29 +247,29 @@
   // ---------- wiring ----------
   function wire(){
     ['filterText','statusSelect'].forEach(id=>{
-      const el=$(id); if(!el) return;
+      const el=q(id); if(!el) return;
       el.addEventListener('input', ()=>{ applyGlobalFilters(); sortLoans(); });
       el.addEventListener('change', ()=>{ applyGlobalFilters(); sortLoans(); });
     });
     ['companySortKey','companySortDir'].forEach(id=>{
-      const el=$(id); if(!el) return;
+      const el=q(id); if(!el) return;
       el.addEventListener('change', ()=>{ recomputeCompanies(); });
     });
     ['loanSortKey','loanSortDir'].forEach(id=>{
-      const el=$(id); if(!el) return;
+      const el=q(id); if(!el) return;
       el.addEventListener('change', ()=>{ sortLoans(); });
     });
-    const reset=$('resetFilters');
-    if (reset){
-      reset.addEventListener('click', ()=>{
-        ['filterText','statusSelect'].forEach(i=>{ const el=$(i); if(el) el.value=''; });
-        applyGlobalFilters(); sortLoans();
-      });
-    }
+
     // initial
     applyGlobalFilters();
     sortLoans();
+    markDelayed();
   }
+
   document.addEventListener('DOMContentLoaded', wire);
   document.addEventListener('htmx:afterSwap', wire);
 </script>
+
+<style>
+.status-badge { font-size: 0.75rem; padding: 0.25rem 0.5rem; border-radius: 9999px; border-width: 1px; display:inline-block; }
+</style>
