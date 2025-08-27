@@ -2,7 +2,7 @@
 from __future__ import annotations
 from pathlib import Path
 
-from fastapi import FastAPI, File, UploadFile, Request
+from fastapi import FastAPI, File, UploadFile, Request, Form
 from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -37,7 +37,6 @@ def _make_context_from_text(raw: str):
 
 def _fmt_for_template(df: pd.DataFrame) -> pd.DataFrame:
     out = df.copy()
-    # vis datoer som YYYY-MM-DD (ingen klokkeslett)
     for c in ["Date", "start_date", "end_date", "last_payment_date"]:
         if c in out.columns:
             out[c] = pd.to_datetime(out[c]).dt.date.astype(str)
@@ -78,9 +77,21 @@ async def index(request: Request):
     return _render_full(request, ctx)
 
 
+# Prioriterer paste > file. Begge er valgfrie; hvis begge mangler returneres demo (enkelt).
 @app.post("/upload", response_class=HTMLResponse)
-async def upload(request: Request, file: UploadFile = File(...)):
-    raw = (await file.read()).decode("utf-8", errors="ignore")
+async def upload(
+    request: Request,
+    file: UploadFile | None = File(None),
+    paste: str | None = Form(None),
+):
+    raw = ""
+    if paste and paste.strip():
+        raw = paste
+    elif file is not None:
+        raw = (await file.read()).decode("utf-8", errors="ignore")
+    else:
+        raw = DEMO_PATH.read_text(encoding="utf-8")
+
     ctx = _make_context_from_text(raw)
     return _render_dashboard_partial(request, ctx)
 

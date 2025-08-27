@@ -60,7 +60,7 @@ def parse_text_to_tx_df(raw: str) -> pd.DataFrame:
     rows = []
     for b in blocks:
         h = _parse_header(b.splitlines()[0])
-        if not h: 
+        if not h:
             continue
         t = _parse_table(b)
         if t.empty:
@@ -90,12 +90,12 @@ def expand_to_daily(tx_df: pd.DataFrame) -> pd.DataFrame:
         idx = pd.date_range(start=start, end=max(last, est_end), freq="D")
         daily = pd.DataFrame({"date": idx})
 
-        # amounts by day
+        # totals by day
         daily["Amount"] = g.groupby("date")["amount"].sum().reindex(idx, fill_value=0.0).values
         for c in ["company", "loan_id", "duration_months", "interest_rate"]:
             daily[c] = meta[c]
 
-        # accumulated interest
+        # accumulated interest (incl. penalty)
         is_int = g["transaction_norm"].isin(["interest", "interest_penalty"])
         int_cum = (g.loc[is_int, ["date", "amount"]]
                     .groupby("date").sum()
@@ -103,11 +103,11 @@ def expand_to_daily(tx_df: pd.DataFrame) -> pd.DataFrame:
                     .cumsum())["amount"].values
         daily["accumulated_interest"] = int_cum
 
-        # invested & repayment status
+        # invested and repaid status
         invested = -g.loc[g["transaction_norm"] == "allocation", "amount"].sum()
-        repaid_sum =  g.loc[g["transaction_norm"] == "principal_repaid", "amount"].sum()
-        daily["invested"]  = float(invested)
+        repaid_sum = g.loc[g["transaction_norm"] == "principal_repaid", "amount"].sum()
         is_repaid = bool(repaid_sum >= invested and repaid_sum > 0)
+        daily["invested"]  = float(invested)
         daily["is_repaid"] = is_repaid
 
         # last payment (interest/penalty/principal)
@@ -117,7 +117,7 @@ def expand_to_daily(tx_df: pd.DataFrame) -> pd.DataFrame:
         ].max()
         daily["last_payment_date"] = last_payment
 
-        # expected interest (simple model)
+        # simple expected interest model
         monthly_interest = invested * (meta["interest_rate"] / 100.0) / 12.0
         daily["estimated_total_interest"] = float(monthly_interest * meta["duration_months"])
         daily["interest_return_pct"] = (
@@ -148,8 +148,18 @@ def build_views(daily_df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
             last_payment_date=("last_payment_date", "max"),
             repaid=("is_repaid", "max"),
         )
-        .assign(status=lambda d: d["repaid"].map({True: "repaid", False: "active"}))
     )
+
+    # --- status: repaid / assigned / active ---
+    def _status(row):
+        if row["repaid"]:
+            return "repaid"
+        # assigned: ingen renter/tilbakebetaling registrert
+        if pd.isna(row["last_payment_date"]) or row["accumulated_interest"] == 0:
+            return "assigned"
+        return "active"
+
+    by_loan["status"] = by_loan.apply(_status, axis=1)
 
     by_company = (by_loan.groupby(["Company"], as_index=False)
         .agg(
@@ -159,8 +169,11 @@ def build_views(daily_df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
             estimated_total_interest=("estimated_total_interest", "sum"),
             active_loans=("status", lambda s: (s == "active").sum()),
             repaid_loans=("status", lambda s: (s == "repaid").sum()),
+            assigned_loans=("status", lambda s: (s == "assigned").sum()),
         )
-        .assign(interest_return_pct=lambda d: (d["accumulated_interest"] / d["estimated_total_interest"].replace(0, pd.NA)) * 100)
+        .assign(
+            interest_return_pct=lambda d: (d["accumulated_interest"] / d["estimated_total_interest"].replace(0, pd.NA)) * 100
+        )
         .fillna({"interest_return_pct": 0.0})
         .sort_values(["Company"]).reset_index(drop=True)
     )

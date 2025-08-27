@@ -6,11 +6,17 @@
       <details open class="bg-white rounded-xl shadow">
         <summary class="cursor-pointer px-4 py-3 font-semibold border-b">☰ Controls</summary>
         <div class="p-4 space-y-4">
-          <!-- Upload -->
+          <!-- Upload / Paste -->
           <form hx-post="/upload" hx-target="#dashboard" hx-swap="innerHTML" hx-encoding="multipart/form-data" class="space-y-2">
-            <label class="text-xs text-gray-500">Upload Kameo .txt</label>
-            <input type="file" name="file" accept=".txt" class="block w-full text-sm" required />
-            <button class="w-full px-3 py-2 bg-blue-600 text-white rounded-lg">Upload & Render</button>
+            <label class="text-xs text-gray-500">Upload file (.txt) <span class="italic">or paste below</span></label>
+            <input type="file" name="file" accept=".txt" class="block w-full text-sm" />
+            
+            <!-- PASTE FIELD -->
+            <textarea id="pasteInput" name="paste" 
+                      class="mt-2 w-full border rounded-lg px-3 py-1 h-12 text-xs"
+                      placeholder="Paste full 'Transaksjoner pr lån' text here..."></textarea>
+
+            <button class="w-full px-3 py-2 bg-blue-600 text-white rounded-lg">Upload / Paste & Render</button>
           </form>
 
           <!-- GLOBAL FILTERS -->
@@ -24,18 +30,20 @@
             <select id="statusSelect" class="mt-1 w-full border rounded-lg px-3 py-2">
               <option value="">All</option>
               <option value="active">Active</option>
+              <option value="delayed">Active (Delayed)</option>
+              <option value="assigned">Assigned</option>
               <option value="repaid">Repaid</option>
             </select>
           </div>
 
           <p class="text-xs text-gray-500 leading-5">
             This dashboard is a lightweight tool for getting an overview of your <strong>Kameo</strong> investments.
-            On Kameo, open <em>“Transaksjoner pr lån”</em>, copy the full content, paste it into a plain text file,
-            and upload it here. Uploads are in-memory only — nothing is persisted. Refresh the page at any time to
-            return to the built-in demo data.
+            On Kameo, open <em>“Transaksjoner pr lån”</em>, copy the full content, paste it here or save it as a .txt and upload.
+            Uploads are in-memory only — nothing is persisted. Refresh the page any time to return to the built-in demo data.
           </p>
 
-          <button id="resetFilters" type="button" class="w-full px-3 py-2 border rounded-lg">Reset filters</button>
+          <!-- Export currently rendered (filtered) loans as CSV -->
+          <button id="exportCsv" type="button" class="w-full px-3 py-2 border rounded-lg">Export CSV</button>
         </div>
       </details>
     </aside>

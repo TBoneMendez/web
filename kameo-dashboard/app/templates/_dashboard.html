@@ -1,25 +1,10 @@
 <!-- KPI SECTION (updates with filters) -->
 <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
-  <div class="p-4 bg-white rounded-xl shadow">
-    <div class="text-sm text-gray-500">Companies</div>
-    <div id="kpiCompanies" class="text-2xl font-semibold">{{ kpis.companies }}</div>
-  </div>
-  <div class="p-4 bg-white rounded-xl shadow">
-    <div class="text-sm text-gray-500">Loans</div>
-    <div id="kpiLoans" class="text-2xl font-semibold">{{ kpis.loans }}</div>
-  </div>
-  <div class="p-4 bg-white rounded-xl shadow">
-    <div class="text-sm text-gray-500">Invested</div>
-    <div id="kpiInvested" class="text-2xl font-semibold">{{ '%.0f' % kpis.invested }}</div>
-  </div>
-  <div class="p-4 bg-white rounded-xl shadow">
-    <div class="text-sm text-gray-500">Accum. interest</div>
-    <div id="kpiAccInt" class="text-2xl font-semibold">{{ '%.0f' % kpis.accumulated_interest }}</div>
-  </div>
-  <div class="p-4 bg-white rounded-xl shadow">
-    <div class="text-sm text-gray-500">Est. total interest</div>
-    <div id="kpiEstInt" class="text-2xl font-semibold">{{ '%.0f' % kpis.est_total_interest }}</div>
-  </div>
+  <div class="p-4 bg-white rounded-xl shadow"><div class="text-sm text-gray-500">Companies</div><div id="kpiCompanies" class="text-2xl font-semibold">{{ kpis.companies }}</div></div>
+  <div class="p-4 bg-white rounded-xl shadow"><div class="text-sm text-gray-500">Loans</div><div id="kpiLoans" class="text-2xl font-semibold">{{ kpis.loans }}</div></div>
+  <div class="p-4 bg-white rounded-xl shadow"><div class="text-sm text-gray-500">Invested</div><div id="kpiInvested" class="text-2xl font-semibold">{{ '%.0f' % kpis.invested }}</div></div>
+  <div class="p-4 bg-white rounded-xl shadow"><div class="text-sm text-gray-500">Accum. interest</div><div id="kpiAccInt" class="text-2xl font-semibold">{{ '%.0f' % kpis.accumulated_interest }}</div></div>
+  <div class="p-4 bg-white rounded-xl shadow"><div class="text-sm text-gray-500">Est. total interest</div><div id="kpiEstInt" class="text-2xl font-semibold">{{ '%.0f' % kpis.est_total_interest }}</div></div>
 </div>
 
 <!-- COMPANY SUMMARY (sortable) -->
@@ -76,6 +61,7 @@
   <div class="flex items-center gap-2 text-sm">
     <span class="text-gray-500">Sort:</span>
     <select id="loanSortKey" class="border rounded px-2 py-1">
+      <option value="status">Loan status</option>
       <option value="returnpct">% return</option>
       <option value="invested">Invested</option>
       <option value="acc">Accum. interest</option>
@@ -102,7 +88,9 @@
        data-acc="{{ '%.2f' % r.accumulated_interest }}"
        data-est="{{ '%.2f' % r.estimated_total_interest }}"
        data-returnpct="{{ '%.2f' % r.interest_return_pct }}"
-       data-lastpay="{{ r.last_payment_date }}">
+       data-lastpay="{{ r.last_payment_date }}"
+       data-start="{{ r.start_date }}"
+       data-end="{{ r.end_date }}">
     <div class="flex items-start justify-between mb-2">
       <div>
         <div class="text-sm text-gray-500">{{ r.Company }}</div>
@@ -111,6 +99,8 @@
       <div class="text-right">
         {% if r.status == "repaid" %}
           <span class="status-badge bg-green-100 text-green-700 border-green-300">Repaid</span>
+        {% elif r.status == "assigned" %}
+          <span class="status-badge bg-blue-100 text-blue-700 border-blue-300">Assigned</span>
         {% else %}
           <span class="status-badge bg-yellow-100 text-yellow-700 border-yellow-300">Active</span>
         {% endif %}
@@ -124,7 +114,14 @@
       <div class="bg-gray-50 rounded p-2"><div class="text-xs text-gray-500">Accum. interest</div><div class="font-medium">{{ '%.0f' % r.accumulated_interest }}</div></div>
       <div class="bg-gray-50 rounded p-2"><div class="text-xs text-gray-500">Est. total interest</div><div class="font-medium">{{ '%.0f' % r.estimated_total_interest }}</div></div>
       <div class="bg-gray-50 rounded p-2"><div class="text-xs text-gray-500">% return</div><div class="font-medium">{{ '%.1f' % r.interest_return_pct }}%</div></div>
-      <div class="bg-gray-50 rounded p-2"><div class="text-xs text-gray-500">Last payment</div><div class="font-medium">{{ r.last_payment_date }}</div></div>
+      <div class="bg-gray-50 rounded p-2">
+        <div class="text-xs text-gray-500">Last payment</div>
+        <div class="font-medium">
+          {% if r.status != "assigned" and r.last_payment_date and r.last_payment_date != 'NaT' %}
+            {{ r.last_payment_date }}
+          {% endif %}
+        </div>
+      </div>
     </div>
     <div class="text-xs text-gray-500 mt-2">Period: {{ r.start_date }} → {{ r.end_date }}</div>
   </div>
@@ -139,6 +136,38 @@
   function visibleCards(){ return Array.from(document.querySelectorAll('.loan-card')).filter(c=>c.style.display!=='none') }
   function daysSince(dateStr){ const t=Date.parse(dateStr); if(isNaN(t)) return Infinity; return (Date.now()-t)/(1000*60*60*24) }
 
+  // set delayed badge + flag (only for active)
+  function markDelayed(){
+    document.querySelectorAll('.loan-card').forEach(card=>{
+      const st=(card.dataset.status||'').toLowerCase();
+      const badge=card.querySelector('.status-badge');
+      if(!badge) return;
+
+      card.dataset.delayed = "false"; // default
+
+      if(st==='repaid'){
+        badge.textContent='Repaid';
+        badge.className='status-badge bg-green-100 text-green-700 border-green-300';
+        return;
+      }
+      if(st==='assigned'){
+        badge.textContent='Assigned';
+        badge.className='status-badge bg-blue-100 text-blue-700 border-blue-300';
+        return;
+      }
+      // active
+      const d=daysSince(card.dataset.lastpay||'');
+      if(d>31){
+        card.dataset.delayed="true";
+        badge.textContent='Active (Delayed)';
+        badge.className='status-badge bg-red-100 text-red-700 border-red-300';
+      }else{
+        badge.textContent='Active';
+        badge.className='status-badge bg-yellow-100 text-yellow-700 border-yellow-300';
+      }
+    });
+  }
+
   // ---------- global filters ----------
   function applyGlobalFilters(){
     const txt=(q('filterText')?.value||'').toLowerCase();
@@ -148,16 +177,21 @@
       const c=(card.dataset.company||'').toLowerCase();
       const id=(card.dataset.loan||'').toLowerCase();
       const st=(card.dataset.status||'').toLowerCase();
+      const delayed=(card.dataset.delayed||'false')==='true';
 
       const matchTxt=!txt || c.includes(txt) || id.includes(txt);
-      const matchStatus=!status || st===status;
+      let matchStatus=true;
+      if(status==='active')   matchStatus = (st==='active');                  // inkluderer delayed
+      if(status==='delayed')  matchStatus = (st==='active' && delayed);      // kun forsinkede
+      if(status==='assigned') matchStatus = (st==='assigned');
+      if(status==='repaid')   matchStatus = (st==='repaid');
 
       card.style.display = (matchTxt && matchStatus) ? '' : 'none';
     });
 
     recomputeKPIs();
     recomputeCompanies();
-    markDelayed();   // oppdater badges etter filtrering
+    sortLoans();
   }
 
   // ---------- KPIs ----------
@@ -202,36 +236,26 @@
       </tr>`).join('');
   }
 
-  // ---------- delayed badge ----------
-  function markDelayed(){
-    document.querySelectorAll('.loan-card').forEach(card=>{
-      const st=(card.dataset.status||'').toLowerCase();
-      const badge=card.querySelector('.status-badge');
-      if(!badge) return;
-
-      if(st==='repaid'){
-        badge.textContent='Repaid';
-        badge.className='status-badge bg-green-100 text-green-700 border-green-300';
-        return;
-      }
-      const d=daysSince(card.dataset.lastpay||'');
-      if(d>31){
-        badge.textContent='Active (Delayed)';
-        badge.className='status-badge bg-red-100 text-red-700 border-red-300';
-      }else{
-        badge.textContent='Active';
-        badge.className='status-badge bg-yellow-100 text-yellow-700 border-yellow-300';
-      }
-    });
+  // ---------- loan sort ----------
+  // status rank for sorting (desc: Delayed > Active > Assigned > Repaid)
+  function statusRank(card){
+    const st=(card.dataset.status||'').toLowerCase();
+    const delayed=(card.dataset.delayed||'false')==='true';
+    if(st==='repaid') return 0;
+    if(st==='assigned') return 1;
+    if(st==='active' && !delayed) return 2;
+    if(st==='active' && delayed) return 3;
+    return -1;
   }
 
-  // ---------- loan sort ----------
   function sortLoans(){
-    const key=q('loanSortKey')?.value||'returnpct';
+    const key=q('loanSortKey')?.value||'status';
     const dir=q('loanSortDir')?.value||'desc';
     const grid=q('loanGrid');
     const cards=Array.from(grid.children).filter(c=>c.style.display!=='none');
+
     const toVal=c=>{
+      if(key==='status')    return statusRank(c);
       if(key==='lastpay')   return parseDate(c.dataset.lastpay);
       if(key==='returnpct') return num(c.dataset.returnpct);
       if(key==='acc')       return num(c.dataset.acc);
@@ -240,16 +264,52 @@
       if(key==='duration')  return num(c.dataset.duration);
       return 0;
     };
+
     cards.sort((a,b)=> dir==='asc' ? (toVal(a)-toVal(b)) : (toVal(b)-toVal(a)) );
     cards.forEach(c=>grid.appendChild(c));
+  }
+
+  // ---------- export visible loans as CSV ----------
+  function exportVisibleLoansCSV(){
+    const rows = visibleCards().map(c => ({
+      Company: c.dataset.company || '',
+      Loan: c.dataset.loan || '',
+      Status: (c.dataset.status || '').toLowerCase() + ((c.dataset.status||'').toLowerCase()==='active' && (c.dataset.delayed==='true') ? ' (delayed)' : ''),
+      RatePct: c.dataset.interest || '',
+      DurationM: c.dataset.duration || '',
+      Invested: c.dataset.invested || '',
+      AccumInterest: c.dataset.acc || '',
+      EstTotalInterest: c.dataset.est || '',
+      ReturnPct: c.dataset.returnpct || '',
+      LastPayment: c.dataset.lastpay || '',
+      Start: c.dataset.start || '',
+      End: c.dataset.end || '',
+    }));
+
+    const header = ["Company","Loan","Status","Rate(%)","Duration(m)","Invested","Accum. interest","Est. total interest","% return","Last payment","Start","End"];
+    const csvLines = [header.join(",")].concat(
+      rows.map(r => [
+        r.Company, r.Loan, r.Status, r.RatePct, r.DurationM, r.Invested,
+        r.AccumInterest, r.EstTotalInterest, r.ReturnPct, r.LastPayment, r.Start, r.End
+      ].map(v => `"${String(v).replace(/"/g,'""')}"`).join(","))
+    );
+    const blob = new Blob([csvLines.join("\n")], {type: "text/csv;charset=utf-8;"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "kameo_loans_export.csv";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   }
 
   // ---------- wiring ----------
   function wire(){
     ['filterText','statusSelect'].forEach(id=>{
       const el=q(id); if(!el) return;
-      el.addEventListener('input', ()=>{ applyGlobalFilters(); sortLoans(); });
-      el.addEventListener('change', ()=>{ applyGlobalFilters(); sortLoans(); });
+      el.addEventListener('input', ()=>{ markDelayed(); applyGlobalFilters(); });
+      el.addEventListener('change', ()=>{ markDelayed(); applyGlobalFilters(); });
     });
     ['companySortKey','companySortDir'].forEach(id=>{
       const el=q(id); if(!el) return;
@@ -260,14 +320,27 @@
       el.addEventListener('change', ()=>{ sortLoans(); });
     });
 
+    // Export button (in navbar)
+    const exp = document.getElementById('exportCsv');
+    if (exp) exp.addEventListener('click', exportVisibleLoansCSV);
+
     // initial
+    markDelayed();
     applyGlobalFilters();
     sortLoans();
-    markDelayed();
   }
 
+  // Clear paste textarea after successful render swap
+  document.addEventListener('htmx:afterSwap', (evt) => {
+    if (evt.detail && evt.detail.target && evt.detail.target.id === 'dashboard') {
+      const p = document.getElementById('pasteInput');
+      if (p) p.value = '';
+      // re-wire listeners for new content
+      wire();
+    }
+  });
+
   document.addEventListener('DOMContentLoaded', wire);
-  document.addEventListener('htmx:afterSwap', wire);
 </script>
 
 <style>
