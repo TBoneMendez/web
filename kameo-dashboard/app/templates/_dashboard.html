@@ -1,4 +1,8 @@
-<!-- KPI SECTION (updates with filters) -->
+<!-- Monthly data payloads for app.js -->
+<script id="monthlyData" type="application/json">{{ monthly_json | safe }}</script>
+<script id="monthlyByLoanData" type="application/json">{{ monthly_by_loan_json | safe }}</script>
+
+<!-- KPI SECTION -->
 <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
   <div class="p-4 bg-white rounded-xl shadow"><div class="text-sm text-gray-500">Companies</div><div id="kpiCompanies" class="text-2xl font-semibold">{{ kpis.companies }}</div></div>
   <div class="p-4 bg-white rounded-xl shadow"><div class="text-sm text-gray-500">Loans</div><div id="kpiLoans" class="text-2xl font-semibold">{{ kpis.loans }}</div></div>
@@ -7,7 +11,27 @@
   <div class="p-4 bg-white rounded-xl shadow"><div class="text-sm text-gray-500">Est. total interest</div><div id="kpiEstInt" class="text-2xl font-semibold">{{ '%.0f' % kpis.est_total_interest }}</div></div>
 </div>
 
-<!-- COMPANY SUMMARY (sortable) -->
+<!-- MONTHLY CHART -->
+<div class="bg-white rounded-xl shadow p-4 mb-6">
+  <div class="flex items-center justify-between mb-3">
+    <div class="flex items-center gap-3">
+      <h2 class="text-lg font-semibold">Monthly overview</h2>
+      <span class="text-xs text-gray-400">NOK</span>
+    </div>
+    <div class="flex items-center gap-2 text-sm">
+      <label class="text-gray-500">Metric:</label>
+      <select id="metricSelect" class="border rounded px-2 py-1">
+        <option value="interest">Interest</option>
+        <option value="principal">Principal repaid</option>
+      </select>
+      <button id="thisYearBtn" class="border rounded px-2 py-1">This year</button>
+      <button id="allDataBtn" class="border rounded px-2 py-1">All data</button>
+    </div>
+  </div>
+  <div class="h-64"><canvas id="monthlyChart"></canvas></div>
+</div>
+
+<!-- COMPANY SUMMARY -->
 <div class="bg-white rounded-xl shadow p-4 mb-6">
   <div class="flex items-center justify-between mb-2">
     <h2 class="text-lg font-semibold">By company</h2>
@@ -55,7 +79,7 @@
   </div>
 </div>
 
-<!-- LOANS (cards) with local sort -->
+<!-- LOANS -->
 <div class="flex items-center justify-between mb-2">
   <h2 class="text-lg font-semibold">Loans</h2>
   <div class="flex items-center gap-2 text-sm">
@@ -127,222 +151,3 @@
   </div>
   {% endfor %}
 </div>
-
-<script>
-  // ---------- helpers ----------
-  function num(x){ const n=parseFloat(String(x).replace(/\s/g,'').replace(',','.')); return isNaN(n)?0:n }
-  function parseDate(x){ const t=Date.parse(x); return isNaN(t)?0:t }
-  function q(id){ return document.getElementById(id) }
-  function visibleCards(){ return Array.from(document.querySelectorAll('.loan-card')).filter(c=>c.style.display!=='none') }
-  function daysSince(dateStr){ const t=Date.parse(dateStr); if(isNaN(t)) return Infinity; return (Date.now()-t)/(1000*60*60*24) }
-
-  // set delayed badge + flag (only for active)
-  function markDelayed(){
-    document.querySelectorAll('.loan-card').forEach(card=>{
-      const st=(card.dataset.status||'').toLowerCase();
-      const badge=card.querySelector('.status-badge');
-      if(!badge) return;
-
-      card.dataset.delayed = "false"; // default
-
-      if(st==='repaid'){
-        badge.textContent='Repaid';
-        badge.className='status-badge bg-green-100 text-green-700 border-green-300';
-        return;
-      }
-      if(st==='assigned'){
-        badge.textContent='Assigned';
-        badge.className='status-badge bg-blue-100 text-blue-700 border-blue-300';
-        return;
-      }
-      // active
-      const d=daysSince(card.dataset.lastpay||'');
-      if(d>31){
-        card.dataset.delayed="true";
-        badge.textContent='Active (Delayed)';
-        badge.className='status-badge bg-red-100 text-red-700 border-red-300';
-      }else{
-        badge.textContent='Active';
-        badge.className='status-badge bg-yellow-100 text-yellow-700 border-yellow-300';
-      }
-    });
-  }
-
-  // ---------- global filters ----------
-  function applyGlobalFilters(){
-    const txt=(q('filterText')?.value||'').toLowerCase();
-    const status=(q('statusSelect')?.value||'').toLowerCase();
-
-    document.querySelectorAll('.loan-card').forEach(card=>{
-      const c=(card.dataset.company||'').toLowerCase();
-      const id=(card.dataset.loan||'').toLowerCase();
-      const st=(card.dataset.status||'').toLowerCase();
-      const delayed=(card.dataset.delayed||'false')==='true';
-
-      const matchTxt=!txt || c.includes(txt) || id.includes(txt);
-      let matchStatus=true;
-      if(status==='active')   matchStatus = (st==='active');                  // inkluderer delayed
-      if(status==='delayed')  matchStatus = (st==='active' && delayed);      // kun forsinkede
-      if(status==='assigned') matchStatus = (st==='assigned');
-      if(status==='repaid')   matchStatus = (st==='repaid');
-
-      card.style.display = (matchTxt && matchStatus) ? '' : 'none';
-    });
-
-    recomputeKPIs();
-    recomputeCompanies();
-    sortLoans();
-  }
-
-  // ---------- KPIs ----------
-  function recomputeKPIs(){
-    const cards=visibleCards();
-    const companies=new Set(cards.map(c=>c.dataset.company));
-    let invested=0, acc=0, est=0;
-    cards.forEach(c=>{ invested+=num(c.dataset.invested); acc+=num(c.dataset.acc); est+=num(c.dataset.est); });
-    q('kpiCompanies').textContent = companies.size;
-    q('kpiLoans').textContent = cards.length;
-    q('kpiInvested').textContent = Math.round(invested);
-    q('kpiAccInt').textContent = Math.round(acc);
-    q('kpiEstInt').textContent = Math.round(est);
-  }
-
-  // ---------- company table from visible cards ----------
-  function recomputeCompanies(){
-    const rows = {};
-    visibleCards().forEach(c=>{
-      const co=c.dataset.company; const st=c.dataset.status;
-      rows[co]=rows[co]||{Company:co, loans:0, active:0, repaid:0, invested:0, acc:0, est:0};
-      rows[co].loans += 1; rows[co][st] += 1;
-      rows[co].invested += num(c.dataset.invested);
-      rows[co].acc      += num(c.dataset.acc);
-      rows[co].est      += num(c.dataset.est);
-    });
-    const arr=Object.values(rows);
-    const key=q('companySortKey')?.value||'loans';
-    const dir=q('companySortDir')?.value||'desc';
-    const pick=(r)=> key==='loans'? r.loans : (key==='invested'? r.invested : (key==='acc'? r.acc : r.est));
-    arr.sort((a,b)=> dir==='asc' ? (pick(a)-pick(b)) : (pick(b)-pick(a)) );
-    const tbody=q('companyBody'); if(!tbody) return;
-    tbody.innerHTML = arr.map(r=>`
-      <tr class="border-b last:border-0">
-        <td class="py-1 pr-4">${r.Company}</td>
-        <td class="py-1 pr-4">${r.loans}</td>
-        <td class="py-1 pr-4">${r.active||0}</td>
-        <td class="py-1 pr-4">${r.repaid||0}</td>
-        <td class="py-1 pr-4">${Math.round(r.invested)}</td>
-        <td class="py-1 pr-4">${Math.round(r.acc)}</td>
-        <td class="py-1 pr-4">${Math.round(r.est)}</td>
-      </tr>`).join('');
-  }
-
-  // ---------- loan sort ----------
-  // status rank for sorting (desc: Delayed > Active > Assigned > Repaid)
-  function statusRank(card){
-    const st=(card.dataset.status||'').toLowerCase();
-    const delayed=(card.dataset.delayed||'false')==='true';
-    if(st==='repaid') return 0;
-    if(st==='assigned') return 1;
-    if(st==='active' && !delayed) return 2;
-    if(st==='active' && delayed) return 3;
-    return -1;
-  }
-
-  function sortLoans(){
-    const key=q('loanSortKey')?.value||'status';
-    const dir=q('loanSortDir')?.value||'desc';
-    const grid=q('loanGrid');
-    const cards=Array.from(grid.children).filter(c=>c.style.display!=='none');
-
-    const toVal=c=>{
-      if(key==='status')    return statusRank(c);
-      if(key==='lastpay')   return parseDate(c.dataset.lastpay);
-      if(key==='returnpct') return num(c.dataset.returnpct);
-      if(key==='acc')       return num(c.dataset.acc);
-      if(key==='invested')  return num(c.dataset.invested);
-      if(key==='interest')  return num(c.dataset.interest);
-      if(key==='duration')  return num(c.dataset.duration);
-      return 0;
-    };
-
-    cards.sort((a,b)=> dir==='asc' ? (toVal(a)-toVal(b)) : (toVal(b)-toVal(a)) );
-    cards.forEach(c=>grid.appendChild(c));
-  }
-
-  // ---------- export visible loans as CSV ----------
-  function exportVisibleLoansCSV(){
-    const rows = visibleCards().map(c => ({
-      Company: c.dataset.company || '',
-      Loan: c.dataset.loan || '',
-      Status: (c.dataset.status || '').toLowerCase() + ((c.dataset.status||'').toLowerCase()==='active' && (c.dataset.delayed==='true') ? ' (delayed)' : ''),
-      RatePct: c.dataset.interest || '',
-      DurationM: c.dataset.duration || '',
-      Invested: c.dataset.invested || '',
-      AccumInterest: c.dataset.acc || '',
-      EstTotalInterest: c.dataset.est || '',
-      ReturnPct: c.dataset.returnpct || '',
-      LastPayment: c.dataset.lastpay || '',
-      Start: c.dataset.start || '',
-      End: c.dataset.end || '',
-    }));
-
-    const header = ["Company","Loan","Status","Rate(%)","Duration(m)","Invested","Accum. interest","Est. total interest","% return","Last payment","Start","End"];
-    const csvLines = [header.join(",")].concat(
-      rows.map(r => [
-        r.Company, r.Loan, r.Status, r.RatePct, r.DurationM, r.Invested,
-        r.AccumInterest, r.EstTotalInterest, r.ReturnPct, r.LastPayment, r.Start, r.End
-      ].map(v => `"${String(v).replace(/"/g,'""')}"`).join(","))
-    );
-    const blob = new Blob([csvLines.join("\n")], {type: "text/csv;charset=utf-8;"});
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "kameo_loans_export.csv";
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  }
-
-  // ---------- wiring ----------
-  function wire(){
-    ['filterText','statusSelect'].forEach(id=>{
-      const el=q(id); if(!el) return;
-      el.addEventListener('input', ()=>{ markDelayed(); applyGlobalFilters(); });
-      el.addEventListener('change', ()=>{ markDelayed(); applyGlobalFilters(); });
-    });
-    ['companySortKey','companySortDir'].forEach(id=>{
-      const el=q(id); if(!el) return;
-      el.addEventListener('change', ()=>{ recomputeCompanies(); });
-    });
-    ['loanSortKey','loanSortDir'].forEach(id=>{
-      const el=q(id); if(!el) return;
-      el.addEventListener('change', ()=>{ sortLoans(); });
-    });
-
-    // Export button (in navbar)
-    const exp = document.getElementById('exportCsv');
-    if (exp) exp.addEventListener('click', exportVisibleLoansCSV);
-
-    // initial
-    markDelayed();
-    applyGlobalFilters();
-    sortLoans();
-  }
-
-  // Clear paste textarea after successful render swap
-  document.addEventListener('htmx:afterSwap', (evt) => {
-    if (evt.detail && evt.detail.target && evt.detail.target.id === 'dashboard') {
-      const p = document.getElementById('pasteInput');
-      if (p) p.value = '';
-      // re-wire listeners for new content
-      wire();
-    }
-  });
-
-  document.addEventListener('DOMContentLoaded', wire);
-</script>
-
-<style>
-.status-badge { font-size: 0.75rem; padding: 0.25rem 0.5rem; border-radius: 9999px; border-width: 1px; display:inline-block; }
-</style>
