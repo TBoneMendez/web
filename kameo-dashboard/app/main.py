@@ -15,9 +15,14 @@ from .parser import (
     build_monthly_series,
 )
 
+# --- Paths / app setup ---
 APP_DIR = Path(__file__).resolve().parent
 ROOT_DIR = APP_DIR.parent
+# Demo-filen ligger under app/demo/demo.txt
 DEMO_PATH = APP_DIR / "demo" / "demo.txt"
+
+# Husk sist rendret råtekst (demo / upload / paste) for eksport
+LAST_RAW: str = ""
 
 app = FastAPI(title="Kameo Dashboard")
 templates = Jinja2Templates(directory=str(APP_DIR / "templates"))
@@ -27,26 +32,24 @@ STATIC_DIR.mkdir(parents=True, exist_ok=True)
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 
+# ---------------- Helpers ----------------
 def _fmt_for_template(df: pd.DataFrame) -> pd.DataFrame:
     out = df.copy()
-    # Dato-felter til str (YYYY-MM-DD), håndter NaT trygt
     for c in ["Date", "start_date", "end_date", "last_payment_date", "repayment_date"]:
         if c in out.columns:
             out[c] = pd.to_datetime(out[c], errors="coerce").dt.date.astype("string").fillna("").astype(str)
-    # Tall-felter til float
-    for c in [
-        "invested",
-        "accumulated_interest",
-        "estimated_total_interest",
-        "interest_return_pct",
-    ]:
+    for c in ["invested", "accumulated_interest", "estimated_total_interest", "interest_return_pct"]:
         if c in out.columns:
             out[c] = pd.to_numeric(out[c], errors="coerce").fillna(0.0).astype(float)
     return out
 
 
 def _build_monthly_by_loan(tx: pd.DataFrame, daily: pd.DataFrame, monthly_df: pd.DataFrame) -> dict:
-    """Per-lån månedsserier for filterbar graf (ingen estimater for repaid-lån)."""
+    """
+    Per-lån månedsserier for filterbar graf.
+    - Faktiske tall tas alltid med.
+    - Estimater lages KUN for lån som ikke er repaid.
+    """
     if tx.empty or daily.empty or monthly_df.empty:
         return {"months": [], "loans": {}}
 
@@ -69,11 +72,11 @@ def _build_monthly_by_loan(tx: pd.DataFrame, daily: pd.DataFrame, monthly_df: pd
         is_int = t["transaction_norm"].isin(["interest", "interest_penalty"])
         is_pri = t["transaction_norm"].eq("principal_repaid")
 
-        # abs() FØR groupby for kompatibilitet
+        # Ta abs() FØR groupby (kompatibelt med flere pandas-versjoner)
         ia = t.loc[is_int, "amount"].abs().groupby(t.loc[is_int, "month"]).sum()
         pa = t.loc[is_pri, "amount"].abs().groupby(t.loc[is_pri, "month"]).sum()
 
-        ie, pe = {}, {}  # default: ingen estimater
+        ie, pe = {}, {}  # default: ingen estimater for repaid
         if not is_repaid:
             # Plan-start: første rentebetaling hvis finnes, ellers første dato
             int_days = g[g["interest_amount"].abs() > 0]
@@ -90,7 +93,8 @@ def _build_monthly_by_loan(tx: pd.DataFrame, daily: pd.DataFrame, monthly_df: pd
             ].sum()
             remaining_principal = max(0.0, invested - float(principal_paid_before))
 
-            def round_500(x: float) -> float: return 500.0 * round(float(x) / 500.0)
+            def round_500(x: float) -> float:
+                return 500.0 * round(float(x) / 500.0)
 
             n_left = len(months_future)
             base = round_500(remaining_principal / n_left) if n_left > 1 else remaining_principal
@@ -102,7 +106,8 @@ def _build_monthly_by_loan(tx: pd.DataFrame, daily: pd.DataFrame, monthly_df: pd
                     pay = min(rem, base); pay = round_500(pay)
                 else:
                     pay = rem
-                pay = max(0.0, float(pay)); rem -= pay
+                pay = max(0.0, float(pay))
+                rem -= pay
                 pe[m] = pe.get(m, 0.0) + pay
 
             # Flat rente-estimat pr måned
@@ -132,10 +137,8 @@ def _make_context_from_text(raw: str):
     daily = expand_to_daily(tx)
     by_loan, by_company = build_views(daily)
 
-    # Månedlig totalserie
     monthly_df = build_monthly_series(tx, daily)
-
-    # Tving numeriske kolonner til float (robust mot tom/rar input)
+    # Tving numeriske kolonner til float (robusthet)
     for c in ["interest_actual", "interest_estimated", "principal_actual", "principal_estimated"]:
         if c not in monthly_df.columns:
             monthly_df[c] = 0.0
@@ -152,7 +155,6 @@ def _make_context_from_text(raw: str):
 
     monthly_by_loan = _build_monthly_by_loan(tx, daily, monthly_df)
 
-    # KPIer (tåler tomt datasett)
     kpis = {
         "companies": int(by_company.shape[0]),
         "loans": int(by_loan.shape[0]),
@@ -199,9 +201,13 @@ def _render_dashboard_partial(request: Request, ctx: dict) -> HTMLResponse:
     )
 
 
+# ---------------- Routes ----------------
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
+    """Rendre side med demo hvis den finnes."""
+    global LAST_RAW
     raw = DEMO_PATH.read_text(encoding="utf-8") if DEMO_PATH.exists() else ""
+    LAST_RAW = raw
     ctx = _make_context_from_text(raw)
     return _render_full(request, ctx)
 
@@ -212,22 +218,31 @@ async def upload(
     file: UploadFile | None = File(None),
     paste: str | None = Form(None),
 ):
+    """Upload / paste – rendrer dashboard og husker sist brukte råtekst for eksport."""
+    global LAST_RAW
     if paste and paste.strip():
         raw = paste
     elif file is not None:
         raw = (await file.read()).decode("utf-8", errors="ignore")
     else:
-        raw = DEMO_PATH.read_text(encoding="utf-8") if DEMO_PATH.exists() else ""
+        # Ingen input – behold forrige datasett (eller fall tilbake til demo)
+        raw = LAST_RAW if LAST_RAW else (DEMO_PATH.read_text(encoding="utf-8") if DEMO_PATH.exists() else "")
 
+    LAST_RAW = raw
     ctx = _make_context_from_text(raw)
     return _render_dashboard_partial(request, ctx)
 
 
 @app.get("/download/csv")
 async def download_csv(view: str = "by_loan"):
-    raw = DEMO_PATH.read_text(encoding="utf-8") if DEMO_PATH.exists() else ""
-    ctx = _make_context_from_text(raw)
-    daily, by_loan, by_company = ctx["daily"], ctx["by_loan"], ctx["by_company"]
+    """
+    Eksporterer CSV for gjeldende datasett (siste rendret råtekst).
+    view = 'daily' | 'by_company' | 'by_loan'
+    """
+    raw = LAST_RAW if LAST_RAW is not None else ""
+    tx = parse_text_to_tx_df(raw)
+    daily = expand_to_daily(tx)
+    by_loan, by_company = build_views(daily)
 
     if view == "daily":
         df = daily
