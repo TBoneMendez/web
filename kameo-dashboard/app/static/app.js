@@ -103,18 +103,26 @@ function recomputeKPIs(){
 function recomputeCompanies(){
   const rows = {};
   visibleCards().forEach(c=>{
-    const co=c.dataset.company; const st=c.dataset.status;
+    const co=c.dataset.company;
+    const st=(c.dataset.status||'').toLowerCase();
     rows[co]=rows[co]||{Company:co, loans:0, active:0, repaid:0, invested:0, acc:0, est:0};
-    rows[co].loans += 1; rows[co][st] = (rows[co][st]||0) + 1;
+    rows[co].loans += 1;
+    rows[co][st] = (rows[co][st]||0) + 1;
     rows[co].invested += num(c.dataset.invested);
     rows[co].acc      += num(c.dataset.acc);
     rows[co].est      += num(c.dataset.est);
   });
-  const arr=Object.values(rows);
+
+  const arr = Object.values(rows).map(r => ({
+    ...r,
+    ret: r.est > 0 ? (r.acc / r.est * 100) : 0
+  }));
+
   const key=q('companySortKey')?.value||'loans';
   const dir=q('companySortDir')?.value||'desc';
   const pick=(r)=> key==='loans'? r.loans : (key==='invested'? r.invested : (key==='acc'? r.acc : r.est));
   arr.sort((a,b)=> dir==='asc' ? (pick(a)-pick(b)) : (pick(b)-pick(a)) );
+
   const tbody=q('companyBody'); if(!tbody) return;
   tbody.innerHTML = arr.map(r=>`
     <tr class="border-b last:border-0">
@@ -123,8 +131,44 @@ function recomputeCompanies(){
       <td class="py-1 pr-4">${r.active||0}</td>
       <td class="py-1 pr-4">${r.repaid||0}</td>
       <td class="py-1 pr-4">${Math.round(r.invested)}</td>
-      <td class="py-1 pr-4">${Math.round(r.acc)}</td>
       <td class="py-1 pr-4">${Math.round(r.est)}</td>
+      <td class="py-1 pr-4">${Math.round(r.acc)}</td>
+      <td class="py-1 pr-0">${r.ret.toFixed(1)}%</td>
+    </tr>`).join('');
+}function recomputeCompanies(){
+  const rows = {};
+  visibleCards().forEach(c=>{
+    const co=c.dataset.company;
+    const st=(c.dataset.status||'').toLowerCase();
+    rows[co]=rows[co]||{Company:co, loans:0, active:0, repaid:0, invested:0, acc:0, est:0};
+    rows[co].loans += 1;
+    rows[co][st] = (rows[co][st]||0) + 1;
+    rows[co].invested += num(c.dataset.invested);
+    rows[co].acc      += num(c.dataset.acc);
+    rows[co].est      += num(c.dataset.est);
+  });
+
+  const arr = Object.values(rows).map(r => ({
+    ...r,
+    ret: r.est > 0 ? (r.acc / r.est * 100) : 0
+  }));
+
+  const key=q('companySortKey')?.value||'loans';
+  const dir=q('companySortDir')?.value||'desc';
+  const pick=(r)=> key==='loans'? r.loans : (key==='invested'? r.invested : (key==='acc'? r.acc : r.est));
+  arr.sort((a,b)=> dir==='asc' ? (pick(a)-pick(b)) : (pick(b)-pick(a)) );
+
+  const tbody=q('companyBody'); if(!tbody) return;
+  tbody.innerHTML = arr.map(r=>`
+    <tr class="border-b last:border-0">
+      <td class="py-1 pr-4">${r.Company}</td>
+      <td class="py-1 pr-4">${r.loans}</td>
+      <td class="py-1 pr-4">${r.active||0}</td>
+      <td class="py-1 pr-4">${r.repaid||0}</td>
+      <td class="py-1 pr-4">${Math.round(r.invested)}</td>
+      <td class="py-1 pr-4">${Math.round(r.est)}</td>
+      <td class="py-1 pr-4">${Math.round(r.acc)}</td>
+      <td class="py-1 pr-0">${r.ret.toFixed(1)}%</td>
     </tr>`).join('');
 }
 

@@ -7,8 +7,8 @@
   <div class="p-4 bg-white rounded-xl shadow"><div class="text-sm text-gray-500">Companies</div><div id="kpiCompanies" class="text-2xl font-semibold">{{ kpis.companies }}</div></div>
   <div class="p-4 bg-white rounded-xl shadow"><div class="text-sm text-gray-500">Loans</div><div id="kpiLoans" class="text-2xl font-semibold">{{ kpis.loans }}</div></div>
   <div class="p-4 bg-white rounded-xl shadow"><div class="text-sm text-gray-500">Invested</div><div id="kpiInvested" class="text-2xl font-semibold">{{ '%.0f' % kpis.invested }}</div></div>
-  <div class="p-4 bg-white rounded-xl shadow"><div class="text-sm text-gray-500">Accum. interest</div><div id="kpiAccInt" class="text-2xl font-semibold">{{ '%.0f' % kpis.accumulated_interest }}</div></div>
   <div class="p-4 bg-white rounded-xl shadow"><div class="text-sm text-gray-500">Est. total interest</div><div id="kpiEstInt" class="text-2xl font-semibold">{{ '%.0f' % kpis.est_total_interest }}</div></div>
+  <div class="p-4 bg-white rounded-xl shadow"><div class="text-sm text-gray-500">Accum. interest</div><div id="kpiAccInt" class="text-2xl font-semibold">{{ '%.0f' % kpis.accumulated_interest }}</div></div>
 </div>
 
 <!-- MONTHLY CHART -->
@@ -58,8 +58,9 @@
           <th class="py-2 pr-4">Active</th>
           <th class="py-2 pr-4">Repaid</th>
           <th class="py-2 pr-4">Invested</th>
-          <th class="py-2 pr-4">Accum. interest</th>
           <th class="py-2 pr-4">Est. total interest</th>
+          <th class="py-2 pr-4">Accum. interest</th>
+          <th class="py-2 pr-0">% return</th>
         </tr>
       </thead>
       <tbody id="companyBody">
@@ -70,8 +71,9 @@
           <td class="py-1 pr-4">{{ r.active_loans }}</td>
           <td class="py-1 pr-4">{{ r.repaid_loans }}</td>
           <td class="py-1 pr-4">{{ '%.0f' % r.invested }}</td>
-          <td class="py-1 pr-4">{{ '%.0f' % r.accumulated_interest }}</td>
           <td class="py-1 pr-4">{{ '%.0f' % r.estimated_total_interest }}</td>
+          <td class="py-1 pr-4">{{ '%.0f' % r.accumulated_interest }}</td>
+          <td class="py-1 pr-0">{{ '%.1f' % (r.interest_return_pct or 0.0) }}%</td>
         </tr>
         {% endfor %}
       </tbody>

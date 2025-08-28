@@ -17,7 +17,7 @@ from .parser import (
 
 APP_DIR = Path(__file__).resolve().parent
 ROOT_DIR = APP_DIR.parent
-DEMO_PATH = ROOT_DIR / "demo" / "demo.txt"
+DEMO_PATH = APP_DIR / "demo" / "demo.txt"
 
 app = FastAPI(title="Kameo Dashboard")
 templates = Jinja2Templates(directory=str(APP_DIR / "templates"))
@@ -46,7 +46,7 @@ def _fmt_for_template(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def _build_monthly_by_loan(tx: pd.DataFrame, daily: pd.DataFrame, monthly_df: pd.DataFrame) -> dict:
-    """Per-lån månedsserier for filterbar graf."""
+    """Per-lån månedsserier for filterbar graf (ingen estimater for repaid-lån)."""
     if tx.empty or daily.empty or monthly_df.empty:
         return {"months": [], "loans": {}}
 
@@ -59,6 +59,7 @@ def _build_monthly_by_loan(tx: pd.DataFrame, daily: pd.DataFrame, monthly_df: pd
         invested = float(g["invested"].max())
         rate = float(g["interest"].max())
         duration = int(g["duration"].max())
+        is_repaid = bool(g["is_repaid"].max())
 
         t = tx[tx["loan_id"] == loan_id].copy()
         if t.empty:
@@ -68,65 +69,53 @@ def _build_monthly_by_loan(tx: pd.DataFrame, daily: pd.DataFrame, monthly_df: pd
         is_int = t["transaction_norm"].isin(["interest", "interest_penalty"])
         is_pri = t["transaction_norm"].eq("principal_repaid")
 
-        # VIKTIG: ta abs() FØR groupby for kompatibilitet med eldre pandas
-        ia = (
-            t.loc[is_int, "amount"].abs()
-              .groupby(t.loc[is_int, "month"])
-              .sum()
-        )
-        pa = (
-            t.loc[is_pri, "amount"].abs()
-              .groupby(t.loc[is_pri, "month"])
-              .sum()
-        )
+        # abs() FØR groupby for kompatibilitet
+        ia = t.loc[is_int, "amount"].abs().groupby(t.loc[is_int, "month"]).sum()
+        pa = t.loc[is_pri, "amount"].abs().groupby(t.loc[is_pri, "month"]).sum()
 
-        # Plan-start: første rentebetaling hvis finnes, ellers første dato
-        int_days = g[g["interest_amount"].abs() > 0]
-        sched_start = (
-            pd.to_datetime(int_days["Date"].min())
-            if not int_days.empty
-            else pd.to_datetime(g["Date"].min())
-        )
-        start_month = pd.Timestamp(sched_start.year, sched_start.month, 1)
+        ie, pe = {}, {}  # default: ingen estimater
+        if not is_repaid:
+            # Plan-start: første rentebetaling hvis finnes, ellers første dato
+            int_days = g[g["interest_amount"].abs() > 0]
+            sched_start = pd.to_datetime(int_days["Date"].min()) if not int_days.empty else pd.to_datetime(g["Date"].min())
+            start_month = pd.Timestamp(sched_start.year, sched_start.month, 1)
 
-        months_all = pd.period_range(start=start_month, periods=duration, freq="M").to_timestamp()
-        months_future = [m for m in months_all if m >= this_month]
+            months_all = pd.period_range(start=start_month, periods=duration, freq="M").to_timestamp()
+            months_future = [m for m in months_all if m >= this_month]
 
-        # Gjenstående hovedstol
-        principal_paid_before = t.loc[
-            (t["transaction_norm"] == "principal_repaid") & (t["date"] < this_month),
-            "amount",
-        ].sum()
-        remaining_principal = max(0.0, invested - float(principal_paid_before))
+            # Gjenstående hovedstol
+            principal_paid_before = t.loc[
+                (t["transaction_norm"] == "principal_repaid") & (t["date"] < this_month),
+                "amount",
+            ].sum()
+            remaining_principal = max(0.0, invested - float(principal_paid_before))
 
-        def round_500(x: float) -> float:
-            return 500.0 * round(float(x) / 500.0)
+            def round_500(x: float) -> float: return 500.0 * round(float(x) / 500.0)
 
-        n_left = len(months_future)
-        base = round_500(remaining_principal / n_left) if n_left > 1 else remaining_principal
+            n_left = len(months_future)
+            base = round_500(remaining_principal / n_left) if n_left > 1 else remaining_principal
 
-        # Fordel estimert hovedstol over gjenstående måneder
-        pe = {}
-        rem = remaining_principal
-        for i, m in enumerate(months_future, start=1):
-            if i < n_left:
-                pay = min(rem, base); pay = round_500(pay)
-            else:
-                pay = rem
-            pay = max(0.0, float(pay))
-            rem -= pay
-            pe[m] = pe.get(m, 0.0) + pay
+            # Fordel estimert hovedstol
+            rem = remaining_principal
+            for i, m in enumerate(months_future, start=1):
+                if i < n_left:
+                    pay = min(rem, base); pay = round_500(pay)
+                else:
+                    pay = rem
+                pay = max(0.0, float(pay)); rem -= pay
+                pe[m] = pe.get(m, 0.0) + pay
 
-        # Flat rente-estimat pr måned; fjern overlapp i inneværende måned
-        mi = invested * (rate / 100.0) / 12.0 if duration > 0 else 0.0
-        ie = {m: mi for m in months_future}
-        if this_month in ie:
-            ie[this_month] = max(0.0, ie[this_month] - float(ia.get(this_month, 0.0)))
-        if this_month in pe:
-            pe[this_month] = max(0.0, pe[this_month] - float(pa.get(this_month, 0.0)))
+            # Flat rente-estimat pr måned
+            mi = invested * (rate / 100.0) / 12.0 if duration > 0 else 0.0
+            ie = {m: mi for m in months_future}
 
-        def arr(series_map):
-            return [float(series_map.get(m, 0.0)) for m in months_idx]
+            # Fjern overlapp i inneværende måned
+            if this_month in ie:
+                ie[this_month] = max(0.0, ie[this_month] - float(ia.get(this_month, 0.0)))
+            if this_month in pe:
+                pe[this_month] = max(0.0, pe[this_month] - float(pa.get(this_month, 0.0)))
+
+        def arr(series_map): return [float(series_map.get(m, 0.0)) for m in months_idx]
 
         payload[str(int(loan_id))] = {
             "interest_actual": [float(ia.get(m, 0.0)) for m in months_idx],
@@ -146,7 +135,7 @@ def _make_context_from_text(raw: str):
     # Månedlig totalserie
     monthly_df = build_monthly_series(tx, daily)
 
-    # 🔒 Tving numeriske kolonner til float (robust mot tom/rar input)
+    # Tving numeriske kolonner til float (robust mot tom/rar input)
     for c in ["interest_actual", "interest_estimated", "principal_actual", "principal_estimated"]:
         if c not in monthly_df.columns:
             monthly_df[c] = 0.0
