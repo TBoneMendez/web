@@ -164,16 +164,20 @@ def expand_to_daily(tx_df: pd.DataFrame) -> pd.DataFrame:
 
 def build_views(daily_df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
     """
-    by_loan / by_company med repayment_date-reglene:
-      1) Har Tilbakebetaling -> bruk SISTE dato med principal_amount > 0
-      2) Ellers, har Renteinntekt -> første rente + antall terminer
-      3) Ellers -> første dato + antall terminer
+    by_loan / by_company med:
+      - start_date = første renteinntektsdato om den finnes, ellers første dato (Tildeling)
+      - end_date   = start_date + antall terminer (måneder)
+      - repayment_date-regler som tidligere:
+          1) Har Tilbakebetaling -> bruk SISTE dato med principal_amount > 0
+          2) Ellers, har Renteinntekt -> første rente + antall terminer
+          3) Ellers -> første dato + antall terminer
     """
     if daily_df.empty:
         by_loan = pd.DataFrame(columns=[
             "loan_id","Company","duration","interest","start_date","end_date",
             "invested","accumulated_interest","estimated_total_interest",
-            "interest_return_pct","last_payment_date","repaid","repayment_date","status"
+            "interest_return_pct","last_payment_date","repaid",
+            "repayment_date","status"
         ])
         by_company = pd.DataFrame(columns=[
             "Company","loans","invested","accumulated_interest","estimated_total_interest",
@@ -181,6 +185,36 @@ def build_views(daily_df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
         ])
         return by_loan, by_company
 
+    # --- Beregn start/end per lån etter ønsket regel ---
+    start_end_rows = []
+    for loan_id, g in daily_df.groupby("loan_id"):
+        g = g.sort_values("Date")
+        duration = int(g["duration"].iloc[0])
+
+        int_mask = (g["interest_amount"].abs() > 0)
+        if int_mask.any():
+            start_dt = pd.to_datetime(g.loc[int_mask, "Date"].min())
+        else:
+            start_dt = pd.to_datetime(g["Date"].min())
+
+        end_dt = start_dt + relativedelta(months=+duration)
+        start_end_rows.append((loan_id, start_dt, end_dt))
+
+    start_end_df = pd.DataFrame(start_end_rows, columns=["loan_id", "start_date", "end_date"])
+
+    # --- Aggregater per lån (uten start/end), så merger vi inn våre start/end ---
+    by_loan = (daily_df.groupby(["loan_id", "Company", "duration", "interest"], as_index=False)
+        .agg(
+            invested=("invested", "max"),
+            accumulated_interest=("accumulated_interest", "max"),
+            estimated_total_interest=("estimated_total_interest", "max"),
+            interest_return_pct=("interest_return_pct", "max"),
+            last_payment_date=("last_payment_date", "max"),
+            repaid=("is_repaid", "max"),
+        )
+    ).merge(start_end_df, on="loan_id", how="left")
+
+    # --- Repayment date etter tidligere regler ---
     def repayment_date_for_group(g: pd.DataFrame) -> pd.Timestamp:
         mask_pri = (g["principal_amount"].abs() > 0)
         if mask_pri.any():
@@ -193,26 +227,13 @@ def build_views(daily_df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
         first_date = pd.to_datetime(g["Date"].min())
         return first_date + relativedelta(months=+duration)
 
-    # by_loan
-    by_loan = (daily_df.groupby(["loan_id", "Company", "duration", "interest"], as_index=False)
-        .agg(
-            start_date=("Date", "min"),
-            end_date=("Date", "max"),
-            invested=("invested", "max"),
-            accumulated_interest=("accumulated_interest", "max"),
-            estimated_total_interest=("estimated_total_interest", "max"),
-            interest_return_pct=("interest_return_pct", "max"),
-            last_payment_date=("last_payment_date", "max"),
-            repaid=("is_repaid", "max"),
-        )
-    )
-
     rep_dates = []
     for loan_id, g in daily_df.groupby("loan_id"):
         rep_dates.append((loan_id, repayment_date_for_group(g)))
     rep_df = pd.DataFrame(rep_dates, columns=["loan_id", "repayment_date"])
     by_loan = by_loan.merge(rep_df, on="loan_id", how="left")
 
+    # --- Status ---
     def _status(row):
         if row["repaid"]:
             return "repaid"
@@ -221,7 +242,7 @@ def build_views(daily_df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
         return "active"
     by_loan["status"] = by_loan.apply(_status, axis=1)
 
-    # by_company
+    # --- By company ---
     by_company = (by_loan.groupby(["Company"], as_index=False)
         .agg(
             loans=("loan_id", "count"),
@@ -240,6 +261,7 @@ def build_views(daily_df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
         .sort_values(["Company"])
         .reset_index(drop=True)
     )
+
     return by_loan, by_company
 
 
