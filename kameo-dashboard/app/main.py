@@ -45,11 +45,7 @@ def _fmt_for_template(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def _build_monthly_by_loan(tx: pd.DataFrame, daily: pd.DataFrame, monthly_df: pd.DataFrame) -> dict:
-    """
-    Per-lån månedsserier for filterbar graf.
-    - Faktiske tall tas alltid med.
-    - Estimater lages KUN for lån som ikke er repaid.
-    """
+    """Per-lån månedsserier for filterbar graf (bullet principal i siste terminmåned)."""
     if tx.empty or daily.empty or monthly_df.empty:
         return {"months": [], "loans": {}}
 
@@ -58,9 +54,11 @@ def _build_monthly_by_loan(tx: pd.DataFrame, daily: pd.DataFrame, monthly_df: pd
     this_month = pd.Timestamp.today().normalize().replace(day=1)
 
     payload = {}
+    from dateutil.relativedelta import relativedelta
+
     for loan_id, g in daily.groupby("loan_id"):
         invested = float(g["invested"].max())
-        rate = float(g["interest"].max())
+        rate     = float(g["interest"].max())
         duration = int(g["duration"].max())
         is_repaid = bool(g["is_repaid"].max())
 
@@ -72,47 +70,42 @@ def _build_monthly_by_loan(tx: pd.DataFrame, daily: pd.DataFrame, monthly_df: pd
         is_int = t["transaction_norm"].isin(["interest", "interest_penalty"])
         is_pri = t["transaction_norm"].eq("principal_repaid")
 
-        # Ta abs() FØR groupby (kompatibelt med flere pandas-versjoner)
         ia = t.loc[is_int, "amount"].abs().groupby(t.loc[is_int, "month"]).sum()
         pa = t.loc[is_pri, "amount"].abs().groupby(t.loc[is_pri, "month"]).sum()
 
-        ie, pe = {}, {}  # default: ingen estimater for repaid
+        ie, pe = {}, {}
+
         if not is_repaid:
-            # Plan-start: første rentebetaling hvis finnes, ellers første dato
             int_days = g[g["interest_amount"].abs() > 0]
-            sched_start = pd.to_datetime(int_days["Date"].min()) if not int_days.empty else pd.to_datetime(g["Date"].min())
+            sched_start = (
+                pd.to_datetime(int_days["Date"].min()) if not int_days.empty
+                else pd.to_datetime(g["Date"].min())
+            )
             start_month = pd.Timestamp(sched_start.year, sched_start.month, 1)
 
-            months_all = pd.period_range(start=start_month, periods=duration, freq="M").to_timestamp()
+            # Serie av månedstarter; forfall = siste terminmåned
+            months_all = pd.date_range(start=start_month, periods=duration, freq="MS")
+            if len(months_all) > 0:
+                maturity_month = months_all[-1]
+            else:
+                maturity_month = start_month
+
+            # Rente-estimat
             months_future = [m for m in months_all if m >= this_month]
-
-            # Gjenstående hovedstol
-            principal_paid_before = t.loc[
-                (t["transaction_norm"] == "principal_repaid") & (t["date"] < this_month),
-                "amount",
-            ].sum()
-            remaining_principal = max(0.0, invested - float(principal_paid_before))
-
-            def round_500(x: float) -> float:
-                return 500.0 * round(float(x) / 500.0)
-
-            n_left = len(months_future)
-            base = round_500(remaining_principal / n_left) if n_left > 1 else remaining_principal
-
-            # Fordel estimert hovedstol
-            rem = remaining_principal
-            for i, m in enumerate(months_future, start=1):
-                if i < n_left:
-                    pay = min(rem, base); pay = round_500(pay)
-                else:
-                    pay = rem
-                pay = max(0.0, float(pay))
-                rem -= pay
-                pe[m] = pe.get(m, 0.0) + pay
-
-            # Flat rente-estimat pr måned
             mi = invested * (rate / 100.0) / 12.0 if duration > 0 else 0.0
-            ie = {m: mi for m in months_future}
+            for m in months_future:
+                ie[m] = ie.get(m, 0.0) + mi
+
+            # Bullet principal i forfallsmåneden
+            if maturity_month >= this_month:
+                principal_paid_before = t.loc[
+                    (t["transaction_norm"] == "principal_repaid") &
+                    (t["date"] < this_month),
+                    "amount"
+                ].sum()
+                remaining_principal = max(0.0, invested - float(principal_paid_before))
+                if remaining_principal > 0:
+                    pe[maturity_month] = pe.get(maturity_month, 0.0) + remaining_principal
 
             # Fjern overlapp i inneværende måned
             if this_month in ie:
@@ -130,7 +123,6 @@ def _build_monthly_by_loan(tx: pd.DataFrame, daily: pd.DataFrame, monthly_df: pd
         }
 
     return {"months": months_str, "loans": payload}
-
 
 def _make_context_from_text(raw: str):
     tx = parse_text_to_tx_df(raw)

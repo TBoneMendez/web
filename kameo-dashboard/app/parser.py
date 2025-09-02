@@ -267,29 +267,22 @@ def build_views(daily_df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
 
 def build_monthly_series(tx_df: pd.DataFrame, daily_df: pd.DataFrame) -> pd.DataFrame:
     """
-    Månedlig serie med kolonner:
-      - interest_actual / principal_actual (fra transaksjoner, abs())
-      - interest_estimated / principal_estimated:
-          • Start = første rente-dato hvis finnes, ellers første dato
-          • Hovedstol i 500-trinn (siste måned tar rest) fra og med inneværende måned
-          • I inneværende måned: Estimated -= Actual (ingen overlapp)
-      • Fullt nedbetalte lån hoppes over i estimatet
-    Tom-robust: returnerer float-kolonner selv ved tom input.
+    Månedlig serie (index = 1. dag i måneden):
+      - interest_actual / principal_actual: fra transaksjoner (abs())
+      - interest_estimated: flat rente pr måned fremover
+      - principal_estimated: BULLET i siste terminmåned (start + duration - 1)
+      - Ingen estimat for repaid-lån
+      - Inneværende måned: Estimated -= Actual (ingen overlapp)
     """
-    # Tom-sikring: gi tilbake rene float-kolonner
     if tx_df.empty or daily_df.empty:
         return pd.DataFrame(
-            columns=[
-                "interest_actual", "principal_actual",
-                "interest_estimated", "principal_estimated"
-            ],
+            columns=["interest_actual", "principal_actual", "interest_estimated", "principal_estimated"],
             dtype="float64",
         )
 
     tx = tx_df.copy()
     tx["month"] = pd.to_datetime(tx["date"]).values.astype("datetime64[M]")
 
-    # Faktiske summer per måned (abs())
     is_int = tx["transaction_norm"].isin(["interest", "interest_penalty"])
     is_pri = tx["transaction_norm"].eq("principal_repaid")
     actual = pd.DataFrame({
@@ -301,58 +294,53 @@ def build_monthly_series(tx_df: pd.DataFrame, daily_df: pd.DataFrame) -> pd.Data
     this_month = pd.Timestamp(today.year, today.month, 1)
 
     est_rows = []
-    def round_500(x: float) -> float:
-        return 500.0 * round(float(x) / 500.0)
+    from dateutil.relativedelta import relativedelta
 
     for loan_id, g in daily_df.groupby("loan_id"):
         invested = float(g["invested"].max())
         rate     = float(g["interest"].max())
         duration = int(g["duration"].max())
 
-        # Plan-start
-        int_mask = (g["interest_amount"].abs() > 0)
-        sched_start = (
-            pd.to_datetime(g.loc[int_mask, "Date"].min())
-            if int_mask.any() else pd.to_datetime(g["Date"].min())
-        )
-        start_month = pd.Timestamp(sched_start.year, sched_start.month, 1)
-
-        # Hopp over helt nedbetalte lån
         if bool(g["is_repaid"].max()):
             continue
 
-        months_all = pd.period_range(start=start_month, periods=duration, freq="M").to_timestamp()
-        months_future = [m for m in months_all if m >= this_month]
-        if not months_future:
+        # Start = første rente hvis finnes, ellers første dato
+        int_mask = (g["interest_amount"].abs() > 0)
+        sched_start = (
+            pd.to_datetime(g.loc[int_mask, "Date"].min()) if int_mask.any()
+            else pd.to_datetime(g["Date"].min())
+        )
+        start_month = pd.Timestamp(sched_start.year, sched_start.month, 1)
+
+        # Serie av månedstarter for alle terminer
+        months_all = pd.date_range(start=start_month, periods=duration, freq="MS")
+        if len(months_all) == 0:
             continue
 
-        principal_paid_before = tx_df.loc[
-            (tx_df["loan_id"] == loan_id) &
-            (tx_df["transaction_norm"] == "principal_repaid") &
-            (tx_df["date"] < this_month),
-            "amount"
-        ].sum()
-        remaining_principal = max(0.0, invested - float(principal_paid_before))
+        # Forfallsmåned = siste terminmåned (ikke måneden etter)
+        maturity_month = months_all[-1]
 
-        n_left = len(months_future)
-        base = round_500(remaining_principal / n_left) if n_left > 1 else remaining_principal
-
+        # Rente-estimat for fremtidige måneder (>= this_month) t.o.m. forfall
+        months_future = [m for m in months_all if m >= this_month]
         monthly_interest = invested * (rate / 100.0) / 12.0 if duration > 0 else 0.0
+        for m in months_future:
+            est_rows.append({"month": m, "interest_estimated": monthly_interest, "principal_estimated": 0.0})
 
-        rem = remaining_principal
-        for i, m in enumerate(months_future, start=1):
-            if i < n_left:
-                pay = min(rem, base); pay = round_500(pay)
-            else:
-                pay = rem
-            pay = max(0.0, float(pay))
-            rem -= pay
-
-            est_rows.append({
-                "month": m,
-                "interest_estimated": monthly_interest,
-                "principal_estimated": pay,
-            })
+        # Gjenstående hovedstol -> alt i forfallsmåneden (hvis forfall ikke er i fortiden)
+        if maturity_month >= this_month:
+            principal_paid_before = tx_df.loc[
+                (tx_df["loan_id"] == loan_id) &
+                (tx_df["transaction_norm"] == "principal_repaid") &
+                (tx_df["date"] < this_month),
+                "amount"
+            ].sum()
+            remaining_principal = max(0.0, invested - float(principal_paid_before))
+            if remaining_principal > 0:
+                est_rows.append({
+                    "month": maturity_month,
+                    "interest_estimated": 0.0,
+                    "principal_estimated": remaining_principal,
+                })
 
     est = pd.DataFrame(est_rows).groupby("month").sum() if est_rows else pd.DataFrame()
     monthly = actual.join(est, how="outer").fillna(0.0).sort_index()
@@ -366,7 +354,6 @@ def build_monthly_series(tx_df: pd.DataFrame, daily_df: pd.DataFrame) -> pd.Data
             0.0, monthly.loc[this_month, "principal_estimated"] - monthly.loc[this_month, "principal_actual"]
         )
 
-    # Sørg for rene float-kolonner uansett
     for c in ["interest_actual","principal_actual","interest_estimated","principal_estimated"]:
         if c not in monthly.columns:
             monthly[c] = 0.0
