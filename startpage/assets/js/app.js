@@ -74,21 +74,34 @@ function startGreetingTicker() {
   bindCardLinks();
 })();
 
-// Bytt ut "Be happy!" bare hvis /assets/funfact finnes og har innhold.
-// Hvis ja: vis "...Forresten: <funfact>"
-// Hvis nei: behold fallback-teksten i HTML-en.
-(async () => {
-  const el = document.getElementById('subtitle');
-  if (!el) return;
-  const fallback = (el.textContent || 'Be happy!').trim();
+// Funfact med fallback og auto-gjenpåføring hvis noe overskriver #subtitle
+(() => {
+  const SEL = '#subtitle';
+  const el0 = document.querySelector(SEL);
+  if (!el0) return; // finnes ikke
+  // fallback beholdes fordi HTML har "Be happy!"
+  let funfact = null;
 
-  try {
-    const r = await fetch('/assets/funfact?ts=' + Date.now(), { cache: 'no-store' });
-    if (!r.ok) return; // fil finnes ikke -> behold fallback
-    const txt = (await r.text()).trim();
-    if (txt) el.textContent = `...Forresten: ${txt}`; // kun når det er innhold
-    // tom fil -> gjør ingenting (fallback blir stående)
-  } catch {
-    // nett/feil -> behold fallback
-  }
+  const desired = () => `...Forresten: ${funfact}`;
+  const apply = () => {
+    if (!funfact) return;
+    const el = document.querySelector(SEL);
+    if (el && el.textContent.trim() !== desired()) el.textContent = desired();
+  };
+
+  // Hent funfact én gang; bruk bare hvis innhold finnes
+  fetch('/assets/funfact?ts=' + Date.now(), { cache: 'no-store' })
+    .then(r => r.ok ? r.text() : '')
+    .then(t => {
+      const v = (t || '').trim();
+      if (!v) return;        // ingen fil/innhold -> behold fallback
+      funfact = v;
+      apply();
+
+      // Gjenpåfør hvis andre scripts overskriver eller bytter node
+      const mo = new MutationObserver(apply);
+      mo.observe(document.body, { childList: true, characterData: true, subtree: true });
+      document.addEventListener('visibilitychange', () => { if (!document.hidden) apply(); });
+    })
+    .catch(() => { /* behold fallback */ });
 })();
