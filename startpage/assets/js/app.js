@@ -73,3 +73,22 @@ function startGreetingTicker() {
   }
   bindCardLinks();
 })();
+
+// Bytt ut "Be happy!" bare hvis /assets/funfact finnes og har innhold.
+// Hvis ja: vis "...Forresten: <funfact>"
+// Hvis nei: behold fallback-teksten i HTML-en.
+(async () => {
+  const el = document.getElementById('subtitle');
+  if (!el) return;
+  const fallback = (el.textContent || 'Be happy!').trim();
+
+  try {
+    const r = await fetch('/assets/funfact?ts=' + Date.now(), { cache: 'no-store' });
+    if (!r.ok) return; // fil finnes ikke -> behold fallback
+    const txt = (await r.text()).trim();
+    if (txt) el.textContent = `...Forresten: ${txt}`; // kun når det er innhold
+    // tom fil -> gjør ingenting (fallback blir stående)
+  } catch {
+    // nett/feil -> behold fallback
+  }
+})();

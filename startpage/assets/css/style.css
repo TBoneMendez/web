@@ -289,3 +289,7 @@ select.chip { appearance: none; }
   height: 42px;
   padding: 0 14px;
 }
+
+.sub {
+  font-style: italic;
+}
