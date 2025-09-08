@@ -1,0 +1,27 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Logg inn – Funfacts Admin</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; background:#0b1020; color:#fff; margin:0; }
+    .wrap { max-width: 420px; margin: 12vh auto; background:#111a38; border:1px solid #2a3570; border-radius: 12px; padding: 24px; }
+    label { display:block; margin-bottom: 6px; }
+    input[type=text] { width:100%; padding:10px 12px; background:#0f1840; border:1px solid #2a3570; border-radius:10px; color:#fff; }
+    button { margin-top:12px; width:100%; padding:10px 14px; border:0; border-radius:10px; background:#7c9aff; color:#000; font-weight:600; cursor:pointer; }
+    .err { margin-top: 8px; color:#ffb4b4; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h2>Logg inn</h2>
+    <form method="post" action="/login">
+      <label for="token">API token</label>
+      <input id="token" name="token" type="text" placeholder="Skriv inn token" autofocus />
+      <button type="submit">Logg inn</button>
+      {% if error %}<div class="err">{{ error }}</div>{% endif %}
+    </form>
+  </div>
+</body>
+</html>
