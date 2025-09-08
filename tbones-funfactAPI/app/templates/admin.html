@@ -1,61 +1,73 @@
 <!doctype html>
-<html>
+<html lang="en">
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>Funfacts Admin</title>
   <style>
-    :root { --bg:#0b1020; --card:#1b2246; --text:#fff; --muted:#c8d0ff; --accent:#7c9aff; }
+    :root { --bg:#0b1020; --text:#fff; --muted:#c8d0ff; --accent:#7c9aff; --border:#2a3570; --panel:#111a38; --row:#0f1840; }
+    * { box-sizing: border-box; }
     body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin:0; background:var(--bg); color:var(--text); }
-    .wrap { max-width: 820px; margin: 40px auto; padding: 0 16px; }
+    .wrap { max-width: 860px; margin: 40px auto; padding: 0 16px; }
     h1 { margin: 0 0 12px; display:flex; justify-content:space-between; align-items:center; }
-    a { color:#aab2f5; }
+    a { color:#aab2f5; text-decoration:none; }
+    a:hover { text-decoration:underline; }
     .row { margin: 14px 0; }
-    textarea, input[type=text] { width: 100%; background: #111a38; color: var(--text); border: 1px solid #2a3570; border-radius: 10px; padding: 10px 12px; }
+    textarea, input[type=text] {
+      width: 100%; background: var(--panel); color: var(--text);
+      border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px;
+    }
     textarea { min-height: 110px; }
-    button { background: var(--accent); border: 0; color: #000; font-weight: 600; padding: 10px 14px; border-radius: 10px; cursor: pointer; }
-    button.secondary { background:#2a3570; color:#fff; }
+    button {
+      background: var(--accent); border: 0; color: #000; font-weight: 600;
+      padding: 10px 14px; border-radius: 10px; cursor: pointer;
+    }
+    button.secondary { background: var(--border); color:#fff; }
+    button:disabled { opacity: .6; cursor: not-allowed; }
     .muted { color: var(--muted); font-size: 0.9rem; }
-    .list { margin-top: 16px; border: 1px solid #2a3570; border-radius: 12px; overflow: hidden; }
-    .rowitem { display: grid; grid-template-columns: 64px 1fr 40px; gap: 10px; align-items: center; padding: 10px 12px; background:#0f1840; border-bottom:1px solid #2a3570; }
+    .stats { margin: 20px 0; padding: 12px; background:var(--panel); border:1px solid var(--border); border-radius: 12px; display:flex; gap:18px; align-items:center; justify-content:space-between; }
+    .toolbar { display:flex; gap:10px; align-items:center; flex-wrap: wrap; }
+    .pager { display:flex; gap:8px; align-items:center; }
+    .list { margin-top: 16px; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+    .rowitem {
+      display: grid; grid-template-columns: 72px 1fr 44px; gap: 10px; align-items: center;
+      padding: 10px 12px; background:var(--row); border-bottom:1px solid var(--border);
+    }
     .rowitem:last-child { border-bottom:0; }
     .id { color:#aab2f5; font-variant-numeric: tabular-nums; }
     .del { background:#ef4444; color:#000; border:0; padding: 6px 8px; border-radius: 8px; cursor:pointer; }
-    .toolbar { display:flex; gap:10px; align-items:center; flex-wrap: wrap; }
-    .pager { display:flex; gap:8px; align-items:center; }
-    .stats { margin: 20px 0; padding: 12px; background:#111a38; border:1px solid #2a3570; border-radius: 12px; }
   </style>
 </head>
 <body>
   <div class="wrap">
     <h1>
       <span>Funfacts Admin</span>
-      <a href="/logout">Logg ut</a>
+      <a href="/logout" title="Log out">Logout</a>
     </h1>
 
     <div class="stats">
-      <div><strong>Antall funfacts:</strong> <span id="stat-count">-</span></div>
-      <div><strong>Sist lagt til:</strong> <span id="stat-latest">-</span></div>
+      <div><strong>Total:</strong> <span id="stat-count">-</span></div>
+      <div><strong>Latest added:</strong> <span id="stat-latest">-</span></div>
     </div>
 
     <div class="row">
-      <label>Ny funfact</label>
-      <textarea id="fact" placeholder="Skriv en ny funfact..."></textarea>
+      <label for="fact">New funfact</label>
+      <textarea id="fact" placeholder="Type a new funfact…"></textarea>
     </div>
 
     <div class="row toolbar">
-      <button id="save">Lagre</button>
-      <button id="random" class="secondary">Hent tilfeldig</button>
+      <button id="save">Save</button>
+      <button id="random" class="secondary">Fetch random into textarea</button>
       <span id="status" class="muted"></span>
     </div>
 
     <div class="row toolbar">
       <div class="pager">
-        <button id="prev" class="secondary">◀︎</button>
-        <span class="muted">Side <span id="page">1</span></span>
-        <button id="next" class="secondary">▶︎</button>
+        <button id="prev" class="secondary">◀︎ Prev</button>
+        <span class="muted">Page <span id="page">1</span></span>
+        <button id="next" class="secondary">Next ▶︎</button>
       </div>
-      <span class="muted">Viser siste først</span>
+      <span class="muted">Newest first</span>
     </div>
 
     <div id="list" class="list"></div>
@@ -68,30 +80,49 @@
     const pageEl     = document.getElementById('page');
     const statCount  = document.getElementById('stat-count');
     const statLatest = document.getElementById('stat-latest');
+    const btnPrev    = document.getElementById('prev');
+    const btnNext    = document.getElementById('next');
+    const btnSave    = document.getElementById('save');
+    const btnRandom  = document.getElementById('random');
 
     const LIMIT = 20;
     let offset = 0;
 
-    document.getElementById('save').addEventListener('click', save);
-    document.getElementById('random').addEventListener('click', getRandom);
-    document.getElementById('prev').addEventListener('click', () => { offset = Math.max(0, offset - LIMIT); load(); pageEl.textContent = (offset/LIMIT)+1; });
-    document.getElementById('next').addEventListener('click', () => { offset += LIMIT; load(); pageEl.textContent = (offset/LIMIT)+1; });
+    btnSave.addEventListener('click', save);
+    btnRandom.addEventListener('click', getRandom);
+    btnPrev.addEventListener('click', () => { if (offset === 0) return; offset = Math.max(0, offset - LIMIT); load(); updatePager(); });
+    btnNext.addEventListener('click', () => { offset += LIMIT; load().then(disableNextIfEnd); updatePager(); });
+
+    function updatePager() {
+      pageEl.textContent = (offset / LIMIT) + 1;
+      btnPrev.disabled = offset === 0;
+    }
 
     async function updateStats() {
       try {
         const res = await fetch('/stats', { credentials: 'same-origin' });
         const data = await res.json();
         statCount.textContent = data.count ?? '-';
-        statLatest.textContent = data.latest_created_at ?? '-';
-      } catch (e) {
-        statCount.textContent = 'Feil';
-        statLatest.textContent = 'Feil';
+
+        // Prefer local time from API; fallback to UTC or legacy field
+        const raw = data.latest_created_at_local || data.latest_created_at_utc || data.latest_created_at || null;
+        if (raw) {
+          const dt = new Date(raw);
+          statLatest.textContent = dt.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+        } else {
+          statLatest.textContent = '-';
+        }
+      } catch {
+        statCount.textContent = 'Error';
+        statLatest.textContent = 'Error';
       }
     }
 
     async function save() {
-      const text  = factInput.value.trim();
-      if (!text) { setStatus('Ingenting å lagre.'); return; }
+      const text = factInput.value.trim();
+      if (!text) { setStatus('Nothing to save.'); return; }
+
+      setBusy(true);
       try {
         const res = await fetch('/funfacts', {
           method: 'POST',
@@ -101,69 +132,118 @@
         });
         const data = await res.json().catch(()=>({}));
         if (res.ok) {
-          setStatus('Lagret. ID=' + (data.id ?? 'ukjent'));
+          setStatus('Saved. ID=' + (data.id ?? 'unknown'));
           factInput.value = '';
-          offset = 0; pageEl.textContent = '1';
+          offset = 0;
+          updatePager();
           await load();
           await updateStats();
         } else {
-          setStatus('Feil: ' + (data.detail ?? res.status));
+          setStatus('Error: ' + (data.detail ?? res.status));
         }
-      } catch (e) { setStatus('Nettverksfeil: ' + e); }
+      } catch (e) {
+        setStatus('Network error: ' + e);
+      } finally {
+        setBusy(false);
+      }
     }
 
     async function getRandom() {
+      setBusy(true);
       try {
-        setStatus('Henter …');
+        setStatus('Fetching random…');
         const res = await fetch('/funfact', { credentials: 'same-origin' });
         const data = await res.json();
         factInput.value = data.text || '';
-        setStatus('Hentet en tilfeldig.');
-      } catch (e) { setStatus('Feil: ' + e); }
+        setStatus('Random loaded into textarea.');
+      } catch (e) {
+        setStatus('Error: ' + e);
+      } finally {
+        setBusy(false);
+      }
     }
 
     async function load() {
-      const res = await fetch(`/funfacts?limit=${LIMIT}&offset=${offset}`, { credentials: 'same-origin' });
-      const items = await res.json();
-      listEl.innerHTML = '';
-      if (!Array.isArray(items) || !items.length) {
-        listEl.innerHTML = '<div class="rowitem"><div></div><div>Ingen flere rader.</div><div></div></div>';
-        return;
+      try {
+        const res = await fetch(`/funfacts?limit=${LIMIT}&offset=${offset}`, { credentials: 'same-origin' });
+        const items = await res.json();
+
+        listEl.innerHTML = '';
+        if (!Array.isArray(items) || !items.length) {
+          listEl.innerHTML = '<div class="rowitem"><div></div><div>No more rows.</div><div></div></div>';
+          // If we overshot (next beyond end), step back one page
+          if (offset > 0 && items.length === 0) {
+            offset = Math.max(0, offset - LIMIT);
+            updatePager();
+          }
+          btnNext.disabled = true;
+          return items;
+        }
+
+        for (const it of items) {
+          const div = document.createElement('div'); div.className = 'rowitem';
+          const id  = document.createElement('div'); id.className = 'id'; id.textContent = '#' + it.id;
+          const txt = document.createElement('div'); txt.textContent = it.text;
+          const del = document.createElement('button'); del.className = 'del'; del.textContent = 'X';
+          del.addEventListener('click', () => delFact(it.id));
+          div.append(id, txt, del);
+          listEl.appendChild(div);
+        }
+
+        btnNext.disabled = items.length < LIMIT;
+        return items;
+      } catch (e) {
+        listEl.innerHTML = '<div class="rowitem"><div></div><div>Load failed.</div><div></div></div>';
+        btnNext.disabled = true;
+        return [];
       }
-      for (const it of items) {
-        const div = document.createElement('div'); div.className = 'rowitem';
-        const id = document.createElement('div'); id.className = 'id'; id.textContent = '#' + it.id;
-        const txt = document.createElement('div'); txt.textContent = it.text;
-        const del = document.createElement('button'); del.className = 'del'; del.textContent = 'X';
-        del.addEventListener('click', () => delFact(it.id));
-        div.append(id, txt, del);
-        listEl.appendChild(div);
+    }
+
+    async function disableNextIfEnd(itemsMaybe) {
+      if (Array.isArray(itemsMaybe)) {
+        btnNext.disabled = itemsMaybe.length < LIMIT;
       }
     }
 
     async function delFact(id) {
-      if (!confirm('Slette #' + id + '?')) return;
+      if (!confirm('Delete #' + id + '?')) return;
+
+      setBusy(true);
       try {
         const res = await fetch('/funfacts/' + id, {
           method: 'DELETE',
           credentials: 'same-origin'
         });
         if (res.status === 204) {
-          setStatus('Slettet #' + id);
+          setStatus('Deleted #' + id);
           await load();
           await updateStats();
         } else {
           const data = await res.json().catch(()=>({}));
-          setStatus('Sletting feilet: ' + (data.detail ?? res.status));
+          setStatus('Delete failed: ' + (data.detail ?? res.status));
         }
-      } catch (e) { setStatus('Feil: ' + e); }
+      } catch (e) {
+        setStatus('Error: ' + e);
+      } finally {
+        setBusy(false);
+      }
     }
 
     function setStatus(t) { statusEl.textContent = t; }
 
+    function setBusy(v) {
+      btnSave.disabled = v;
+      btnRandom.disabled = v;
+      btnPrev.disabled = v || offset === 0;
+    }
+
     // initial load
-    updateStats();
-    load();
+    (async () => {
+      updatePager();
+      await updateStats();
+      const items = await load();
+      disableNextIfEnd(items);
+    })();
   </script>
 </body>
 </html>

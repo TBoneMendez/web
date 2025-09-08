@@ -6,6 +6,9 @@ from fastapi import FastAPI, HTTPException, Depends, Header, Query, Request
 from starlette.middleware.sessions import SessionMiddleware
 from dotenv import load_dotenv
 
+from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
+
 from .db import get_conn, init_db
 from .models import FunFactIn, FunFact
 
@@ -62,12 +65,22 @@ def health():
 def stats():
     with get_conn() as conn:
         total = conn.execute("SELECT COUNT(*) AS c FROM funfacts").fetchone()["c"]
-        latest = conn.execute(
+        row = conn.execute(
             "SELECT created_at FROM funfacts ORDER BY id DESC LIMIT 1"
         ).fetchone()
+
+        latest_utc = latest_local = None
+        if row and row["created_at"]:
+            # SQLite CURRENT_TIMESTAMP -> 'YYYY-MM-DD HH:MM:SS' in UTC (naiv)
+            dt_utc = datetime.strptime(row["created_at"], "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
+            latest_utc = dt_utc.isoformat()
+            tz = ZoneInfo(os.getenv("TZ", "Europe/Oslo"))
+            latest_local = dt_utc.astimezone(tz).isoformat()
+
         return {
             "count": total,
-            "latest_created_at": latest["created_at"] if latest else None
+            "latest_created_at_utc": latest_utc,
+            "latest_created_at_local": latest_local,
         }
 
 @app.get("/funfact", response_model=FunFact)
