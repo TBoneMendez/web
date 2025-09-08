@@ -1,0 +1,19 @@
+# Python venv
+tbones-funfactAPI/.venv/
+
+# SQLite database
+#tbones-funfactAPI/funfacts.db
+#tbones-funfactAPI/funfacts-*.db
+
+# Secrets
+tbones-funfactAPI/app/.env
+tbones-funfactAPI/app/API_TOKEN
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# VSCode
+.vscode/
