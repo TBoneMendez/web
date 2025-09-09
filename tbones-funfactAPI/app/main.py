@@ -30,7 +30,7 @@ app.add_middleware(
     SessionMiddleware,
     secret_key=SECRET_KEY,
     session_cookie="funfacts_sess",
-    https_only=False,     # change to True when served over HTTPS
+    https_only=True,     # change to True when served over HTTPS / False for dev
     same_site="lax"
 )
 
@@ -123,3 +123,4 @@ def delete_funfact(fact_id: int, _=Depends(require_token)):
         conn.commit()
         if cur.rowcount == 0:
             raise HTTPException(status_code=404, detail="Not found")
+
