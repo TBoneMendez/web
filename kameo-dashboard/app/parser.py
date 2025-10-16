@@ -5,6 +5,22 @@ import pandas as pd
 from dateutil.relativedelta import relativedelta
 
 # ---------- Helpers ----------
+
+# Svensk -> Norsk mapping for transaksjonstyper
+_TX_SV_NO = {
+    "Tilldelning": "Tildeling",
+    "Återbetalning": "Tilbakebetaling",
+    "Inkomstränta": "Renteinntekt",
+    "Ränteintäkt": "Renteinntekt",
+    "Ränta": "Renteinntekt",
+    "Dröjsmålsränta": "Forsinkelsesrente",
+}
+
+def _canon_tx(tx: str) -> str:
+    """Normaliser transaksjonstype til norsk."""
+    tx = (tx or "").strip()
+    return _TX_SV_NO.get(tx, tx)
+
 def _parse_decimal_no(x: str) -> float:
     x = (x or "").strip()
     if x in {"-", ""}:
@@ -13,8 +29,13 @@ def _parse_decimal_no(x: str) -> float:
     return float(x)
 
 def _parse_header(line: str):
-    # "<Company> - <loan_id> | Løpetid: <m> m | Rente: <r>%"
-    m = re.match(r"^(.*?)\s*-\s*(\d+)\s*\|\s*Løpetid:\s*([\d]+)\s*m.*?\|\s*Rente:\s*([\d,]+)%", line)
+    # Norsk: "<Company> - <loan_id> | Løpetid: <m> m | Rente: <r>%"
+    # Svensk: "<Company> - <loan_id> | Löptid: <m> m | Ränta: <r>%"
+    m = re.match(
+        r"^(.*?)\s*-\s*(\d+)\s*\|\s*(?:Løpetid|Löptid):\s*([\d]+)\s*m.*?\|\s*(?:Rente|Ränta):\s*([\d,]+)%",
+        line,
+        flags=re.IGNORECASE,
+    )
     if not m:
         return None
     return {
@@ -26,14 +47,16 @@ def _parse_header(line: str):
 
 def _parse_table(block: str) -> pd.DataFrame:
     lines = block.strip().splitlines()
+    # Tittelrad kan hete "Dato" (NO) eller "Datum" (SE)
     try:
-        start_idx = next(i for i, l in enumerate(lines) if l.strip().startswith("Dato"))
+        start_idx = next(i for i, l in enumerate(lines) if l.strip().startswith(("Dato", "Datum")))
     except StopIteration:
         return pd.DataFrame()
 
     rows = []
     for r in lines[start_idx + 1:]:
-        if r.strip().startswith("Totale renteinntekter"):
+        # Footer kan være norsk eller svensk
+        if r.strip().startswith(("Totale renteinntekter", "Totala ränteintäkter")):
             break
         rows.append(r)
 
@@ -44,7 +67,7 @@ def _parse_table(block: str) -> pd.DataFrame:
         date_s, trans, amount_s, currency, _, amount_nok_s = parts[:6]
         parsed.append({
             "date": pd.to_datetime(date_s.strip(), format="%Y-%m-%d", errors="coerce"),
-            "transaction": trans.strip(),
+            "transaction": _canon_tx(trans),  # <- normaliser til norsk
             "amount": _parse_decimal_no(amount_nok_s if amount_nok_s.strip() else amount_s),
             "currency": (currency or "NOK").strip() or "NOK",
         })
@@ -52,6 +75,7 @@ def _parse_table(block: str) -> pd.DataFrame:
     return pd.DataFrame(parsed).dropna(subset=["date"]).reset_index(drop=True)
 
 # ---------- Public API ----------
+
 def parse_text_to_tx_df(raw: str) -> pd.DataFrame:
     # Tom-robust: returner riktig-formet DF
     empty_cols = ["date","transaction","amount","currency",
@@ -84,6 +108,7 @@ def parse_text_to_tx_df(raw: str) -> pd.DataFrame:
             .sort_values(["loan_id", "date"])
             .reset_index(drop=True))
 
+    # Norsk -> normalisert nøkkel brukt videre i appen
     tx["transaction_norm"] = tx["transaction"].replace({
         "Renteinntekt": "interest",
         "Forsinkelsesrente": "interest_penalty",
@@ -94,7 +119,7 @@ def parse_text_to_tx_df(raw: str) -> pd.DataFrame:
 
 
 def expand_to_daily(tx_df: pd.DataFrame) -> pd.DataFrame:
-    # Tomt inn => tom DF med forventede kolonner
+    # (Uendret logikk – bruker nå norsk-transaksjoner uansett kilde)
     if tx_df.empty:
         return pd.DataFrame(columns=[
             "Company","loan_id","duration","interest","Date","Amount",
@@ -111,12 +136,10 @@ def expand_to_daily(tx_df: pd.DataFrame) -> pd.DataFrame:
         idx = pd.date_range(start=start, end=max(last, est_end), freq="D")
         daily = pd.DataFrame({"date": idx})
 
-        # totals per dag
         daily["Amount"] = g.groupby("date")["amount"].sum().reindex(idx, fill_value=0.0).values
         for c in ["company", "loan_id", "duration_months", "interest_rate"]:
             daily[c] = meta[c]
 
-        # interest/principal per dag
         is_int = g["transaction_norm"].isin(["interest", "interest_penalty"])
         interest_by_day = (g.loc[is_int, ["date", "amount"]]
                              .groupby("date").sum()
@@ -126,11 +149,8 @@ def expand_to_daily(tx_df: pd.DataFrame) -> pd.DataFrame:
                               .reindex(idx, fill_value=0.0))["amount"]
         daily["interest_amount"] = interest_by_day.values
         daily["principal_amount"] = principal_by_day.values
-
-        # akk. rente
         daily["accumulated_interest"] = interest_by_day.cumsum().values
 
-        # invested, status, last payment
         invested = -g.loc[g["transaction_norm"] == "allocation", "amount"].sum()
         repaid_sum =  g.loc[g["transaction_norm"] == "principal_repaid", "amount"].sum()
         daily["invested"]  = float(invested)
@@ -139,7 +159,6 @@ def expand_to_daily(tx_df: pd.DataFrame) -> pd.DataFrame:
             g["transaction_norm"].isin(["interest","interest_penalty","principal_repaid"]), "date"
         ].max()
 
-        # expected totals (for % return på kort)
         monthly_interest = invested * (meta["interest_rate"] / 100.0) / 12.0
         daily["estimated_total_interest"] = float(monthly_interest * meta["duration_months"])
         daily["interest_return_pct"] = (
@@ -163,15 +182,7 @@ def expand_to_daily(tx_df: pd.DataFrame) -> pd.DataFrame:
 
 
 def build_views(daily_df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """
-    by_loan / by_company med:
-      - start_date = første renteinntektsdato om den finnes, ellers første dato (Tildeling)
-      - end_date   = start_date + antall terminer (måneder)
-      - repayment_date-regler som tidligere:
-          1) Har Tilbakebetaling -> bruk SISTE dato med principal_amount > 0
-          2) Ellers, har Renteinntekt -> første rente + antall terminer
-          3) Ellers -> første dato + antall terminer
-    """
+    # (Uendret logikk)
     if daily_df.empty:
         by_loan = pd.DataFrame(columns=[
             "loan_id","Company","duration","interest","start_date","end_date",
@@ -185,7 +196,9 @@ def build_views(daily_df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
         ])
         return by_loan, by_company
 
-    # --- Beregn start/end per lån etter ønsket regel ---
+    # ... (samme som din versjon) ...
+    from dateutil.relativedelta import relativedelta
+
     start_end_rows = []
     for loan_id, g in daily_df.groupby("loan_id"):
         g = g.sort_values("Date")
@@ -202,7 +215,6 @@ def build_views(daily_df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
 
     start_end_df = pd.DataFrame(start_end_rows, columns=["loan_id", "start_date", "end_date"])
 
-    # --- Aggregater per lån (uten start/end), så merger vi inn våre start/end ---
     by_loan = (daily_df.groupby(["loan_id", "Company", "duration", "interest"], as_index=False)
         .agg(
             invested=("invested", "max"),
@@ -214,7 +226,6 @@ def build_views(daily_df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
         )
     ).merge(start_end_df, on="loan_id", how="left")
 
-    # --- Repayment date etter tidligere regler ---
     def repayment_date_for_group(g: pd.DataFrame) -> pd.Timestamp:
         mask_pri = (g["principal_amount"].abs() > 0)
         if mask_pri.any():
@@ -233,7 +244,6 @@ def build_views(daily_df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
     rep_df = pd.DataFrame(rep_dates, columns=["loan_id", "repayment_date"])
     by_loan = by_loan.merge(rep_df, on="loan_id", how="left")
 
-    # --- Status ---
     def _status(row):
         if row["repaid"]:
             return "repaid"
@@ -242,7 +252,6 @@ def build_views(daily_df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
         return "active"
     by_loan["status"] = by_loan.apply(_status, axis=1)
 
-    # --- By company ---
     by_company = (by_loan.groupby(["Company"], as_index=False)
         .agg(
             loans=("loan_id", "count"),
@@ -266,14 +275,7 @@ def build_views(daily_df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
 
 
 def build_monthly_series(tx_df: pd.DataFrame, daily_df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Månedlig serie (index = 1. dag i måneden):
-      - interest_actual / principal_actual: fra transaksjoner (abs())
-      - interest_estimated: flat rente pr måned fremover
-      - principal_estimated: BULLET i siste terminmåned (start + duration - 1)
-      - Ingen estimat for repaid-lån
-      - Inneværende måned: Estimated -= Actual (ingen overlapp)
-    """
+    # (Uendret logikk)
     if tx_df.empty or daily_df.empty:
         return pd.DataFrame(
             columns=["interest_actual", "principal_actual", "interest_estimated", "principal_estimated"],
@@ -294,8 +296,6 @@ def build_monthly_series(tx_df: pd.DataFrame, daily_df: pd.DataFrame) -> pd.Data
     this_month = pd.Timestamp(today.year, today.month, 1)
 
     est_rows = []
-    from dateutil.relativedelta import relativedelta
-
     for loan_id, g in daily_df.groupby("loan_id"):
         invested = float(g["invested"].max())
         rate     = float(g["interest"].max())
@@ -304,7 +304,6 @@ def build_monthly_series(tx_df: pd.DataFrame, daily_df: pd.DataFrame) -> pd.Data
         if bool(g["is_repaid"].max()):
             continue
 
-        # Start = første rente hvis finnes, ellers første dato
         int_mask = (g["interest_amount"].abs() > 0)
         sched_start = (
             pd.to_datetime(g.loc[int_mask, "Date"].min()) if int_mask.any()
@@ -312,21 +311,16 @@ def build_monthly_series(tx_df: pd.DataFrame, daily_df: pd.DataFrame) -> pd.Data
         )
         start_month = pd.Timestamp(sched_start.year, sched_start.month, 1)
 
-        # Serie av månedstarter for alle terminer
         months_all = pd.date_range(start=start_month, periods=duration, freq="MS")
         if len(months_all) == 0:
             continue
 
-        # Forfallsmåned = siste terminmåned (ikke måneden etter)
         maturity_month = months_all[-1]
-
-        # Rente-estimat for fremtidige måneder (>= this_month) t.o.m. forfall
         months_future = [m for m in months_all if m >= this_month]
         monthly_interest = invested * (rate / 100.0) / 12.0 if duration > 0 else 0.0
         for m in months_future:
             est_rows.append({"month": m, "interest_estimated": monthly_interest, "principal_estimated": 0.0})
 
-        # Gjenstående hovedstol -> alt i forfallsmåneden (hvis forfall ikke er i fortiden)
         if maturity_month >= this_month:
             principal_paid_before = tx_df.loc[
                 (tx_df["loan_id"] == loan_id) &
@@ -345,7 +339,6 @@ def build_monthly_series(tx_df: pd.DataFrame, daily_df: pd.DataFrame) -> pd.Data
     est = pd.DataFrame(est_rows).groupby("month").sum() if est_rows else pd.DataFrame()
     monthly = actual.join(est, how="outer").fillna(0.0).sort_index()
 
-    # Fjern overlapp i inneværende måned
     if this_month in monthly.index:
         monthly.loc[this_month, "interest_estimated"]  = max(
             0.0, monthly.loc[this_month, "interest_estimated"]  - monthly.loc[this_month, "interest_actual"]
